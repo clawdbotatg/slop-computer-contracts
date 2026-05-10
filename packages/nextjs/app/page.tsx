@@ -1,74 +1,272 @@
 "use client";
 
-import Link from "next/link";
-import { Address } from "@scaffold-ui/components";
+import { useState } from "react";
+import { Address, AddressInput } from "@scaffold-ui/components";
 import type { NextPage } from "next";
 import { useAccount } from "wagmi";
-import { BugAntIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
-import { useTargetNetwork } from "~~/hooks/scaffold-eth";
+import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
+
+const PAGE_SIZE = 10n;
+const ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000" as const;
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+
+type Hex32 = `0x${string}`;
+
+type EpisodeForm = {
+  name: string;
+  contractAddr: string;
+  url: string;
+  datetime: string;
+};
+
+const emptyForm: EpisodeForm = { name: "", contractAddr: "", url: "", datetime: "" };
 
 const Home: NextPage = () => {
   const { address: connectedAddress } = useAccount();
-  const { targetNetwork } = useTargetNetwork();
+  const [cursorStack, setCursorStack] = useState<Hex32[]>([ZERO_BYTES32]);
+  const [addForm, setAddForm] = useState<EpisodeForm>(emptyForm);
+  const [liveForm, setLiveForm] = useState<EpisodeForm>(emptyForm);
+
+  const cursor = cursorStack[cursorStack.length - 1];
+
+  const { data: owner } = useScaffoldReadContract({
+    contractName: "SlopComputer",
+    functionName: "owner",
+  });
+
+  const { data: liveId } = useScaffoldReadContract({
+    contractName: "SlopComputer",
+    functionName: "live",
+  });
+
+  const { data: episodeCount } = useScaffoldReadContract({
+    contractName: "SlopComputer",
+    functionName: "episodeCount",
+  });
+
+  // One read replaces `getEpisode(live)` — and on the first page it's the same data we'd render up top.
+  const { data: latestEpisode } = useScaffoldReadContract({
+    contractName: "SlopComputer",
+    functionName: "latest",
+  });
+
+  // Fetch two extra so we can both (a) tell whether more pages exist and
+  // (b) absorb the loss of the live entry when it falls inside this batch.
+  const { data: rawEpisodes } = useScaffoldReadContract({
+    contractName: "SlopComputer",
+    functionName: "getEpisodesFrom",
+    args: [cursor, PAGE_SIZE + 2n],
+  });
+
+  const { writeContractAsync, isPending } = useScaffoldWriteContract({
+    contractName: "SlopComputer",
+  });
+
+  const isOwner = !!connectedAddress && !!owner && connectedAddress.toLowerCase() === owner.toLowerCase();
+  const isLive = !!liveId && liveId !== ZERO_BYTES32;
+  const heroEpisode = isLive && latestEpisode && latestEpisode.id === liveId ? latestEpisode : undefined;
+
+  const filtered = (rawEpisodes ?? []).filter(ep => ep.id !== liveId);
+  const visible = filtered.slice(0, Number(PAGE_SIZE));
+  const hasMore = filtered.length > Number(PAGE_SIZE);
+
+  const pastCount = episodeCount === undefined ? undefined : isLive ? episodeCount - 1n : episodeCount;
+  const pageNumber = cursorStack.length;
+  const estimatedPages = pastCount ? Number((pastCount + PAGE_SIZE - 1n) / PAGE_SIZE) : 0;
+
+  const onNext = () => {
+    if (!hasMore) return;
+    const last = visible[visible.length - 1];
+    setCursorStack(stack => [...stack, last.nextId]);
+  };
+
+  const onPrev = () => {
+    setCursorStack(stack => (stack.length > 1 ? stack.slice(0, -1) : stack));
+  };
+
+  const resetPaging = () => setCursorStack([ZERO_BYTES32]);
+
+  const onAdd = async () => {
+    await writeContractAsync({
+      functionName: "addEpisode",
+      args: [addForm.name, addForm.contractAddr || ZERO_ADDRESS, addForm.url, addForm.datetime],
+    });
+    setAddForm(emptyForm);
+    resetPaging();
+  };
+
+  const onGoLive = async () => {
+    await writeContractAsync({
+      functionName: "goLive",
+      args: [liveForm.name, liveForm.contractAddr || ZERO_ADDRESS, liveForm.url, liveForm.datetime],
+    });
+    setLiveForm(emptyForm);
+    resetPaging();
+  };
+
+  const onGoOffline = async () => {
+    await writeContractAsync({ functionName: "goOffline" });
+  };
+
+  const onDelete = async (id: Hex32) => {
+    await writeContractAsync({ functionName: "deleteEpisode", args: [id] });
+    resetPaging();
+  };
 
   return (
-    <>
-      <div className="flex items-center flex-col grow pt-10">
-        <div className="px-5">
-          <h1 className="text-center">
-            <span className="block text-2xl mb-2">Welcome to</span>
-            <span className="block text-4xl font-bold">Scaffold-ETH 2</span>
-          </h1>
-          <div className="flex justify-center items-center space-x-2 flex-col">
-            <p className="my-2 font-medium">Connected Address:</p>
-            <Address address={connectedAddress} chain={targetNetwork} />
+    <div className="flex flex-col items-center grow w-full px-5 py-10">
+      <div className="w-full max-w-4xl">
+        <h1 className="text-center mb-2">
+          <span className="block text-2xl">slop.computer</span>
+          <span className="block text-4xl font-bold">Episode Registry</span>
+        </h1>
+
+        {/* HERO / LIVE BANNER */}
+        {heroEpisode ? (
+          <div className="alert alert-error my-6 flex flex-col items-start">
+            <div className="flex items-center gap-3">
+              <span className="badge badge-error animate-pulse">LIVE</span>
+              <span className="text-xl font-bold">{heroEpisode.name}</span>
+            </div>
+            <div className="text-sm opacity-80 break-all">
+              <div>{heroEpisode.url}</div>
+              <div>{heroEpisode.datetime}</div>
+              <div className="flex items-center gap-2">
+                contract: <Address address={heroEpisode.contractAddr} size="xs" />
+              </div>
+            </div>
           </div>
+        ) : (
+          <div className="alert my-6">
+            <span>Currently offline.</span>
+          </div>
+        )}
 
-          <p className="text-center text-lg">
-            Get started by editing{" "}
-            <code className="italic bg-base-300 text-base font-bold max-w-full break-words break-all inline-block">
-              packages/nextjs/app/page.tsx
-            </code>
-          </p>
-          <p className="text-center text-lg">
-            Edit your smart contract{" "}
-            <code className="italic bg-base-300 text-base font-bold max-w-full break-words break-all inline-block">
-              YourContract.sol
-            </code>{" "}
-            in{" "}
-            <code className="italic bg-base-300 text-base font-bold max-w-full break-words break-all inline-block">
-              packages/hardhat/contracts
-            </code>
-          </p>
-        </div>
+        {/* OWNER PANEL */}
+        {isOwner && (
+          <div className="card bg-base-200 shadow-lg my-6">
+            <div className="card-body">
+              <h2 className="card-title">Owner controls</h2>
 
-        <div className="grow bg-base-300 w-full mt-16 px-8 py-12">
-          <div className="flex justify-center items-center gap-12 flex-col md:flex-row">
-            <div className="flex flex-col bg-base-100 px-10 py-10 text-center items-center max-w-xs rounded-3xl">
-              <BugAntIcon className="h-8 w-8 fill-secondary" />
-              <p>
-                Tinker with your smart contract using the{" "}
-                <Link href="/debug" passHref className="link">
-                  Debug Contracts
-                </Link>{" "}
-                tab.
-              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                <Panel
+                  title="Add episode"
+                  form={addForm}
+                  setForm={setAddForm}
+                  onSubmit={onAdd}
+                  submitLabel="Add"
+                  disabled={isPending}
+                />
+                <Panel
+                  title={isLive ? "Replace live episode" : "Go live"}
+                  form={liveForm}
+                  setForm={setLiveForm}
+                  onSubmit={onGoLive}
+                  submitLabel={isLive ? "Replace live" : "Go live"}
+                  disabled={isPending}
+                />
+              </div>
+
+              {isLive && (
+                <button className="btn btn-warning mt-2" onClick={onGoOffline} disabled={isPending}>
+                  Go offline
+                </button>
+              )}
             </div>
-            <div className="flex flex-col bg-base-100 px-10 py-10 text-center items-center max-w-xs rounded-3xl">
-              <MagnifyingGlassIcon className="h-8 w-8 fill-secondary" />
-              <p>
-                Explore your local transactions with the{" "}
-                <Link href="/blockexplorer" passHref className="link">
-                  Block Explorer
-                </Link>{" "}
-                tab.
-              </p>
+          </div>
+        )}
+
+        {/* EPISODE LIST */}
+        <div className="card bg-base-200 shadow-lg my-6">
+          <div className="card-body">
+            <div className="flex justify-between items-center">
+              <h2 className="card-title">Episodes ({pastCount?.toString() ?? "…"})</h2>
+              <div className="join">
+                <button className="btn btn-sm join-item" disabled={pageNumber === 1} onClick={onPrev}>
+                  «
+                </button>
+                <button className="btn btn-sm join-item no-animation pointer-events-none">
+                  page {pageNumber}
+                  {estimatedPages ? ` / ${estimatedPages}` : ""}
+                </button>
+                <button className="btn btn-sm join-item" disabled={!hasMore} onClick={onNext}>
+                  »
+                </button>
+              </div>
             </div>
+
+            {visible.length === 0 ? (
+              <p className="opacity-70">No episodes on this page.</p>
+            ) : (
+              <ul className="flex flex-col gap-3 mt-2">
+                {visible.map(ep => (
+                  <li key={ep.id} className="p-3 rounded bg-base-100">
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="min-w-0">
+                        <div className="font-bold">{ep.name}</div>
+                        <div className="text-xs opacity-70 break-all">{ep.datetime}</div>
+                        {ep.url && <div className="text-xs opacity-70 break-all">{ep.url}</div>}
+                        <div className="text-xs flex items-center gap-2 mt-1">
+                          contract: <Address address={ep.contractAddr} size="xs" />
+                        </div>
+                        <div className="text-[10px] opacity-50 break-all mt-1">id: {ep.id}</div>
+                      </div>
+                      {isOwner && (
+                        <button className="btn btn-xs btn-error" disabled={isPending} onClick={() => onDelete(ep.id)}>
+                          delete
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
+
+type PanelProps = {
+  title: string;
+  form: EpisodeForm;
+  setForm: (f: EpisodeForm) => void;
+  onSubmit: () => void;
+  submitLabel: string;
+  disabled?: boolean;
+};
+
+const Panel = ({ title, form, setForm, onSubmit, submitLabel, disabled }: PanelProps) => (
+  <div className="bg-base-100 rounded p-3 flex flex-col gap-2">
+    <div className="font-bold">{title}</div>
+    <input
+      className="input input-bordered input-sm"
+      placeholder="name"
+      value={form.name}
+      onChange={e => setForm({ ...form, name: e.target.value })}
+    />
+    <AddressInput
+      placeholder="contract address (optional)"
+      value={form.contractAddr}
+      onChange={v => setForm({ ...form, contractAddr: v })}
+    />
+    <input
+      className="input input-bordered input-sm"
+      placeholder="url (e.g. ipfs://… or hls)"
+      value={form.url}
+      onChange={e => setForm({ ...form, url: e.target.value })}
+    />
+    <input
+      className="input input-bordered input-sm"
+      placeholder="datetime"
+      value={form.datetime}
+      onChange={e => setForm({ ...form, datetime: e.target.value })}
+    />
+    <button className="btn btn-primary btn-sm" disabled={disabled || !form.name} onClick={onSubmit}>
+      {submitLabel}
+    </button>
+  </div>
+);
 
 export default Home;
