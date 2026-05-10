@@ -10,7 +10,7 @@ contract SlopComputerTest is Test {
     address internal owner = address(0xA76);
     address internal stranger = address(0xB0B);
 
-    /// @dev Default datetime used by `_addAs` / `_goLiveAs` (2026-01-01 UTC).
+    /// @dev Default datetime used by `_addAs` / `_goLiveAs` (2025-01-01 UTC).
     uint256 internal constant DT = 1_735_689_600;
 
     function setUp() public {
