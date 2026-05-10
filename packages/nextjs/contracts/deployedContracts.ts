@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   31337: {
     SlopComputer: {
-      address: "0xb1527802e7800034d6887b0a99a5ad2683184b95",
+      address: "0x38381d63418ff752dba93ee018e36a6814388fa7",
       abi: [
         {
           type: "constructor",
@@ -651,7 +651,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 42,
+      deployedOnBlock: 45,
     },
   },
 } as const;
