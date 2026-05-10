@@ -10,6 +10,9 @@ contract SlopComputerTest is Test {
     address internal owner = address(0xA76);
     address internal stranger = address(0xB0B);
 
+    /// @dev Default datetime used by `_addAs` / `_goLiveAs` (2026-01-01 UTC).
+    uint256 internal constant DT = 1_735_689_600;
+
     function setUp() public {
         sc = new SlopComputer(owner);
     }
@@ -30,13 +33,13 @@ contract SlopComputerTest is Test {
     function test_addEpisode_revertsForNonOwner() public {
         vm.prank(stranger);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
-        sc.addEpisode("ep", address(0), "ipfs://x", "2026-01-01");
+        sc.addEpisode("ep", address(0), "ipfs://x", DT);
     }
 
     function test_goLive_revertsForNonOwner() public {
         vm.prank(stranger);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
-        sc.goLive("ep", address(0), "ipfs://x", "2026-01-01");
+        sc.goLive("ep", address(0), "ipfs://x", DT);
     }
 
     function test_deleteEpisode_revertsForNonOwner() public {
@@ -58,6 +61,7 @@ contract SlopComputerTest is Test {
         SlopComputer.Episode memory ep = sc.getEpisode(id);
         assertEq(ep.id, id);
         assertEq(ep.name, "first");
+        assertEq(ep.datetime, DT);
         assertEq(ep.nextId, bytes32(0));
     }
 
@@ -82,14 +86,13 @@ contract SlopComputerTest is Test {
     }
 
     function test_getId_matchesIdAddEpisodeProduces() public {
-        // _addAs uses datetime="2026-01-01"
         bytes32 actual = _addAs(owner, "a");
-        assertEq(sc.getId("a", "2026-01-01"), actual);
+        assertEq(sc.getId("a", DT), actual);
     }
 
     function test_getId_isDeterministic() public view {
-        bytes32 once = sc.getId("a", "dt");
-        bytes32 twice = sc.getId("a", "dt");
+        bytes32 once = sc.getId("a", 42);
+        bytes32 twice = sc.getId("a", 42);
         assertEq(once, twice);
     }
 
@@ -97,25 +100,30 @@ contract SlopComputerTest is Test {
         // url and contractAddr are mutable via setters, so they must not be part of the id.
         // Adding two episodes with the same (name, datetime) must collide regardless of url.
         vm.prank(owner);
-        sc.addEpisode("name", address(0xAAA), "url-a", "2026-01-01");
-        bytes32 expected = sc.getId("name", "2026-01-01");
+        sc.addEpisode("name", address(0xAAA), "url-a", DT);
+        bytes32 expected = sc.getId("name", DT);
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(SlopComputer.EpisodeAlreadyExists.selector, expected));
-        sc.addEpisode("name", address(0xBBB), "url-b", "2026-01-01");
+        sc.addEpisode("name", address(0xBBB), "url-b", DT);
     }
 
     function test_getId_differsAcrossContractAddresses() public {
         SlopComputer other = new SlopComputer(owner);
         // Same content, but different `address(this)` → different id.
-        assertTrue(sc.getId("a", "dt") != other.getId("a", "dt"));
+        assertTrue(sc.getId("a", DT) != other.getId("a", DT));
+    }
+
+    function test_getId_differsByDatetime() public view {
+        // Different timestamps → different ids (the whole point of swapping string→uint256).
+        assertTrue(sc.getId("a", DT) != sc.getId("a", DT + 1));
     }
 
     function test_addEpisode_revertsOnDuplicateContent() public {
         _addAs(owner, "dup");
-        bytes32 expected = sc.getId("dup", "2026-01-01");
+        bytes32 expected = sc.getId("dup", DT);
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(SlopComputer.EpisodeAlreadyExists.selector, expected));
-        sc.addEpisode("dup", address(0), "different-url", "2026-01-01");
+        sc.addEpisode("dup", address(0), "different-url", DT);
     }
 
     function test_addEpisode_canReuseIdAfterDelete() public {
@@ -125,6 +133,17 @@ contract SlopComputerTest is Test {
         bytes32 readded = _addAs(owner, "reused");
         assertEq(id, readded);
         assertEq(sc.episodeCount(), 1);
+    }
+
+    function test_addEpisode_emitsEvent() public {
+        // We can't predict the id ahead of time, so we just check the event topic
+        // matches the new uint256 datetime signature.
+        vm.recordLogs();
+        vm.prank(owner);
+        sc.addEpisode("hello", address(0xCAFE), "ipfs://abc", DT);
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        assertEq(entries[0].topics[0], keccak256("EpisodeAdded(bytes32,string,address,string,uint256)"));
     }
 
     // -------------------------------------------------------------------------
@@ -143,7 +162,6 @@ contract SlopComputerTest is Test {
         bytes32 id = _addAs(owner, "ep");
         vm.prank(owner);
         sc.setEpisodeContract(id, address(0xABCD));
-        // head still points at the same id; episode still retrievable by it
         assertEq(sc.head(), id);
         assertEq(sc.getEpisode(id).id, id);
     }
@@ -184,7 +202,7 @@ contract SlopComputerTest is Test {
     function test_setEpisodeUrl_liveToRecordedFlow() public {
         // Owner goes live with an HLS stream url, then swaps to ipfs:// after recording.
         vm.prank(owner);
-        bytes32 id = sc.goLive("episode 1", address(0), "https://hls.example/live.m3u8", "2026-05-09");
+        bytes32 id = sc.goLive("episode 1", address(0), "https://hls.example/live.m3u8", DT);
         assertEq(sc.live(), id);
 
         vm.prank(owner);
@@ -212,20 +230,8 @@ contract SlopComputerTest is Test {
         sc.setEpisodeUrl(fake, "ipfs://nope");
     }
 
-    function test_addEpisode_emitsEvent() public {
-        // We can't predict the id ahead of time, so we just check the event was emitted
-        // with matching string fields by recording logs.
-        vm.recordLogs();
-        vm.prank(owner);
-        sc.addEpisode("hello", address(0xCAFE), "ipfs://abc", "2026-05-09");
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        assertEq(entries.length, 1);
-        // EpisodeAdded(bytes32 indexed id, string name, address contractAddr, string url, string datetime)
-        assertEq(entries[0].topics[0], keccak256("EpisodeAdded(bytes32,string,address,string,string)"));
-    }
-
     // -------------------------------------------------------------------------
-    // goLive / goOffline
+    // goLive / goOffline / setLive
     // -------------------------------------------------------------------------
 
     function test_goLive_setsLivePointer() public {
@@ -240,7 +246,6 @@ contract SlopComputerTest is Test {
         bytes32 second = _goLiveAs(owner, "second");
         assertEq(sc.live(), second);
         assertEq(sc.episodeCount(), 2);
-        // first is still in the list, just no longer live
         assertEq(sc.getEpisode(first).name, "first");
         assertEq(sc.getEpisode(first).nextId, bytes32(0));
         assertEq(sc.getEpisode(second).nextId, first);
@@ -251,7 +256,6 @@ contract SlopComputerTest is Test {
         vm.prank(owner);
         sc.goOffline();
         assertEq(sc.live(), bytes32(0));
-        // episode itself stays
         assertEq(sc.getEpisode(id).name, "show");
         assertEq(sc.episodeCount(), 1);
     }
@@ -267,6 +271,52 @@ contract SlopComputerTest is Test {
         vm.prank(stranger);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
         sc.goOffline();
+    }
+
+    function test_setLive_marksExistingEpisodeAsLive() public {
+        bytes32 id = _addAs(owner, "show");
+        assertEq(sc.live(), bytes32(0));
+        vm.prank(owner);
+        sc.setLive(id);
+        assertEq(sc.live(), id);
+    }
+
+    function test_setLive_resumesAfterGoOffline() public {
+        // The bug we're fixing: after goOffline, you couldn't goLive the same
+        // content — EpisodeAlreadyExists. setLive lets you resume in place.
+        bytes32 id = _goLiveAs(owner, "stream");
+
+        vm.prank(owner);
+        sc.goOffline();
+        assertEq(sc.live(), bytes32(0));
+
+        vm.prank(owner);
+        sc.setLive(id);
+        assertEq(sc.live(), id);
+        assertEq(sc.episodeCount(), 1); // no duplicate created
+    }
+
+    function test_setLive_replacesExistingLive() public {
+        bytes32 a = _goLiveAs(owner, "a");
+        bytes32 b = _addAs(owner, "b");
+        assertEq(sc.live(), a);
+        vm.prank(owner);
+        sc.setLive(b);
+        assertEq(sc.live(), b);
+    }
+
+    function test_setLive_revertsForNonOwner() public {
+        bytes32 id = _addAs(owner, "ep");
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        sc.setLive(id);
+    }
+
+    function test_setLive_revertsForUnknownId() public {
+        bytes32 fake = keccak256("nope");
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(SlopComputer.EpisodeNotFound.selector, fake));
+        sc.setLive(fake);
     }
 
     // -------------------------------------------------------------------------
@@ -304,7 +354,6 @@ contract SlopComputerTest is Test {
         vm.prank(owner);
         sc.deleteEpisode(b);
 
-        // c -> a (b spliced out)
         assertEq(sc.head(), c);
         assertEq(sc.getEpisode(c).nextId, a);
         assertEq(sc.getEpisode(a).nextId, bytes32(0));
@@ -438,7 +487,6 @@ contract SlopComputerTest is Test {
     }
 
     function test_getEpisodesFrom_walksWholeListInPages() public {
-        // Add 7 episodes — pages of 3 should yield 3,3,1.
         bytes32[] memory ids = new bytes32[](7);
         ids[0] = _addAs(owner, "ep0"); // tail
         ids[1] = _addAs(owner, "ep1");
@@ -464,7 +512,6 @@ contract SlopComputerTest is Test {
 
         assertEq(page3.length, 1);
         assertEq(page3[0].name, "ep0");
-        // tail's nextId is zero — caller knows to stop here
         assertEq(page3[page3.length - 1].nextId, bytes32(0));
     }
 
@@ -481,7 +528,7 @@ contract SlopComputerTest is Test {
     }
 
     // -------------------------------------------------------------------------
-    // latest()
+    // latest() / liveEpisode()
     // -------------------------------------------------------------------------
 
     function test_latest_returnsZeroStructWhenEmpty() public view {
@@ -503,7 +550,6 @@ contract SlopComputerTest is Test {
         bytes32 liveId = _goLiveAs(owner, "live");
         _addAs(owner, "newer-than-live");
         SlopComputer.Episode memory ep = sc.latest();
-        // Even though a newer non-live episode is at head, latest() follows live.
         assertEq(ep.id, liveId);
         assertEq(ep.name, "live");
     }
@@ -515,6 +561,27 @@ contract SlopComputerTest is Test {
         vm.prank(owner);
         sc.goOffline();
         assertEq(sc.latest().id, last);
+    }
+
+    function test_liveEpisode_returnsZeroStructWhenOffline() public {
+        _addAs(owner, "head");
+        SlopComputer.Episode memory ep = sc.liveEpisode();
+        assertEq(ep.id, bytes32(0));
+        assertEq(ep.name, "");
+    }
+
+    function test_liveEpisode_returnsLiveStruct() public {
+        bytes32 id = _goLiveAs(owner, "show");
+        SlopComputer.Episode memory ep = sc.liveEpisode();
+        assertEq(ep.id, id);
+        assertEq(ep.name, "show");
+    }
+
+    function test_liveEpisode_clearsAfterGoOffline() public {
+        _goLiveAs(owner, "show");
+        vm.prank(owner);
+        sc.goOffline();
+        assertEq(sc.liveEpisode().id, bytes32(0));
     }
 
     // -------------------------------------------------------------------------
@@ -552,9 +619,7 @@ contract SlopComputerTest is Test {
         bytes32 a = _addAs(owner, "a");
         bytes32 b = _addAs(owner, "b");
         _addAs(owner, "c");
-        // a is at index 2 initially
         assertEq(sc.indexOf(a), 2);
-        // delete b → a moves up to index 1
         vm.prank(owner);
         sc.deleteEpisode(b);
         assertEq(sc.indexOf(a), 1);
@@ -571,7 +636,7 @@ contract SlopComputerTest is Test {
         assertEq(sc.owner(), newOwner);
 
         vm.prank(newOwner);
-        sc.addEpisode("post-handoff", address(0), "", "");
+        sc.addEpisode("post-handoff", address(0), "", 0);
         assertEq(sc.episodeCount(), 1);
     }
 
@@ -581,11 +646,11 @@ contract SlopComputerTest is Test {
 
     function _addAs(address who, string memory name) internal returns (bytes32) {
         vm.prank(who);
-        return sc.addEpisode(name, address(0), "ipfs://x", "2026-01-01");
+        return sc.addEpisode(name, address(0), "ipfs://x", DT);
     }
 
     function _goLiveAs(address who, string memory name) internal returns (bytes32) {
         vm.prank(who);
-        return sc.goLive(name, address(0), "ipfs://x", "2026-01-01");
+        return sc.goLive(name, address(0), "ipfs://x", DT);
     }
 }

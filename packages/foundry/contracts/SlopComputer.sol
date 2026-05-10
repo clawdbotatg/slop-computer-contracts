@@ -11,8 +11,8 @@ pragma solidity ^0.8.20;
    ╚══════╝╚══════╝ ╚═════╝ ╚═╝     ╚═╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝      ╚═════╝    ╚═╝   ╚══════╝╚═╝  ╚═╝
 
     Austin Griffith @austingriffith austin@ethereum.org
-    ClawdBotATG @ClawdBotATG clawd@buidlguidl.com 
-    
+    ClawdBotATG @ClawdBotATG clawd@buidlguidl.com
+
 */
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
@@ -27,7 +27,7 @@ contract SlopComputer is Ownable {
         string name;
         address contractAddr;
         string url;
-        string datetime;
+        uint256 datetime; // unix seconds
         bytes32 nextId;
     }
 
@@ -42,7 +42,7 @@ contract SlopComputer is Ownable {
 
     mapping(bytes32 => Episode) private _episodes;
 
-    event EpisodeAdded(bytes32 indexed id, string name, address contractAddr, string url, string datetime);
+    event EpisodeAdded(bytes32 indexed id, string name, address contractAddr, string url, uint256 datetime);
     event EpisodeContractSet(bytes32 indexed id, address contractAddr);
     event EpisodeUrlSet(bytes32 indexed id, string url);
     event EpisodeDeleted(bytes32 indexed id);
@@ -56,7 +56,7 @@ contract SlopComputer is Ownable {
     constructor(address initialOwner) Ownable(initialOwner) { }
 
     /// @notice Add a new episode at the head of the list.
-    function addEpisode(string calldata name, address contractAddr, string calldata url, string calldata datetime)
+    function addEpisode(string calldata name, address contractAddr, string calldata url, uint256 datetime)
         external
         onlyOwner
         returns (bytes32 id)
@@ -67,12 +67,22 @@ contract SlopComputer is Ownable {
     /// @notice Add a new episode at the head AND mark it as the currently-live episode.
     /// @dev    If a different episode is already live, its data is preserved in the list;
     ///         only the `live` pointer moves to the new one.
-    function goLive(string calldata name, address contractAddr, string calldata url, string calldata datetime)
+    function goLive(string calldata name, address contractAddr, string calldata url, uint256 datetime)
         external
         onlyOwner
         returns (bytes32 id)
     {
         id = _addEpisode(name, contractAddr, url, datetime);
+        live = id;
+        emit WentLive(id);
+    }
+
+    /// @notice Mark an existing episode as currently live without creating a new one.
+    ///         Use this to resume a stream after `goOffline` (network glitch, planned
+    ///         break, post-stream republish) — `goLive` would revert with
+    ///         `EpisodeAlreadyExists` for the same content.
+    function setLive(bytes32 id) external onlyOwner {
+        if (_episodes[id].id == bytes32(0)) revert EpisodeNotFound(id);
         live = id;
         emit WentLive(id);
     }
@@ -112,12 +122,14 @@ contract SlopComputer is Ownable {
         if (head == id) {
             head = nextId;
         } else {
-            // Walk from head to find the predecessor. The id is known to exist
-            // and is not the head, so a predecessor must exist.
+            // Walk from head to find the predecessor. The existence check above
+            // guarantees we'll hit `id` before running off the tail; the bytes32(0)
+            // bound is belt-and-suspenders for invariant drift.
             bytes32 cursor = head;
-            while (_episodes[cursor].nextId != id) {
+            while (cursor != bytes32(0) && _episodes[cursor].nextId != id) {
                 cursor = _episodes[cursor].nextId;
             }
+            if (cursor == bytes32(0)) revert EpisodeNotFound(id);
             _episodes[cursor].nextId = nextId;
         }
 
@@ -134,7 +146,7 @@ contract SlopComputer is Ownable {
     ///         Content-addressed by the immutable subset: same (this, name, datetime) → same id.
     ///         `url` and `contractAddr` are mutable post-add via setters and intentionally
     ///         excluded from the hash.
-    function getId(string memory name, string memory datetime) public view returns (bytes32) {
+    function getId(string memory name, uint256 datetime) public view returns (bytes32) {
         return keccak256(abi.encode(address(this), name, datetime));
     }
 
@@ -153,12 +165,21 @@ contract SlopComputer is Ownable {
         return _episodes[id]; // zero-struct when id is bytes32(0)
     }
 
+    /// @notice Live episode struct (or zero-struct when offline). Saves the frontend
+    ///         a round-trip vs. reading the `live` pointer and then `getEpisode`.
+    function liveEpisode() external view returns (Episode memory) {
+        return _episodes[live];
+    }
+
     /// @notice Position of `id` in the linked list, counted from the head.
     ///         Head returns 0. Reverts if `id` doesn't exist.
     function indexOf(bytes32 id) external view returns (uint256 index) {
         if (_episodes[id].id == bytes32(0)) revert EpisodeNotFound(id);
         bytes32 cursor = head;
         while (cursor != id) {
+            // Belt-and-suspenders: existence check above means we *should* hit `id`
+            // before the tail, but bound the loop in case of invariant drift.
+            if (cursor == bytes32(0)) revert EpisodeNotFound(id);
             cursor = _episodes[cursor].nextId;
             unchecked {
                 index += 1;
@@ -210,7 +231,7 @@ contract SlopComputer is Ownable {
         }
     }
 
-    function _addEpisode(string calldata name, address contractAddr, string calldata url, string calldata datetime)
+    function _addEpisode(string calldata name, address contractAddr, string calldata url, uint256 datetime)
         internal
         returns (bytes32 id)
     {

@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   31337: {
     SlopComputer: {
-      address: "0x38381d63418ff752dba93ee018e36a6814388fa7",
+      address: "0xd49880bddfac4fd20d3b6bee01c71231c0c63789",
       abi: [
         {
           type: "constructor",
@@ -41,8 +41,8 @@ const deployedContracts = {
             },
             {
               name: "datetime",
-              type: "string",
-              internalType: "string",
+              type: "uint256",
+              internalType: "uint256",
             },
           ],
           outputs: [
@@ -118,8 +118,8 @@ const deployedContracts = {
                 },
                 {
                   name: "datetime",
-                  type: "string",
-                  internalType: "string",
+                  type: "uint256",
+                  internalType: "uint256",
                 },
                 {
                   name: "nextId",
@@ -174,8 +174,8 @@ const deployedContracts = {
                 },
                 {
                   name: "datetime",
-                  type: "string",
-                  internalType: "string",
+                  type: "uint256",
+                  internalType: "uint256",
                 },
                 {
                   name: "nextId",
@@ -230,8 +230,8 @@ const deployedContracts = {
                 },
                 {
                   name: "datetime",
-                  type: "string",
-                  internalType: "string",
+                  type: "uint256",
+                  internalType: "uint256",
                 },
                 {
                   name: "nextId",
@@ -254,8 +254,8 @@ const deployedContracts = {
             },
             {
               name: "datetime",
-              type: "string",
-              internalType: "string",
+              type: "uint256",
+              internalType: "uint256",
             },
           ],
           outputs: [
@@ -288,8 +288,8 @@ const deployedContracts = {
             },
             {
               name: "datetime",
-              type: "string",
-              internalType: "string",
+              type: "uint256",
+              internalType: "uint256",
             },
           ],
           outputs: [
@@ -372,8 +372,8 @@ const deployedContracts = {
                 },
                 {
                   name: "datetime",
-                  type: "string",
-                  internalType: "string",
+                  type: "uint256",
+                  internalType: "uint256",
                 },
                 {
                   name: "nextId",
@@ -394,6 +394,51 @@ const deployedContracts = {
               name: "",
               type: "bytes32",
               internalType: "bytes32",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "liveEpisode",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "tuple",
+              internalType: "struct SlopComputer.Episode",
+              components: [
+                {
+                  name: "id",
+                  type: "bytes32",
+                  internalType: "bytes32",
+                },
+                {
+                  name: "name",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
+                  name: "contractAddr",
+                  type: "address",
+                  internalType: "address",
+                },
+                {
+                  name: "url",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
+                  name: "datetime",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "nextId",
+                  type: "bytes32",
+                  internalType: "bytes32",
+                },
+              ],
             },
           ],
           stateMutability: "view",
@@ -456,6 +501,19 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "setLive",
+          inputs: [
+            {
+              name: "id",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
           name: "transferOwnership",
           inputs: [
             {
@@ -497,9 +555,9 @@ const deployedContracts = {
             },
             {
               name: "datetime",
-              type: "string",
+              type: "uint256",
               indexed: false,
-              internalType: "string",
+              internalType: "uint256",
             },
           ],
           anonymous: false,
@@ -651,7 +709,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 45,
+      deployedOnBlock: 46,
     },
   },
 } as const;

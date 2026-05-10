@@ -16,10 +16,25 @@ type EpisodeForm = {
   name: string;
   contractAddr: string;
   url: string;
+  /** datetime-local value, e.g. "2026-05-09T14:30" — converted to unix seconds before send */
   datetime: string;
 };
 
 const emptyForm: EpisodeForm = { name: "", contractAddr: "", url: "", datetime: "" };
+
+const toUnix = (datetimeLocal: string): bigint => {
+  if (!datetimeLocal) return 0n;
+  const ms = Date.parse(datetimeLocal);
+  return Number.isNaN(ms) ? 0n : BigInt(Math.floor(ms / 1000));
+};
+
+const formatUnix = (seconds: bigint): string => {
+  if (!seconds) return "—";
+  return new Date(Number(seconds) * 1000)
+    .toISOString()
+    .replace("T", " ")
+    .replace(/\.\d+Z$/, "Z");
+};
 
 const Home: NextPage = () => {
   const { address: connectedAddress } = useAccount();
@@ -34,20 +49,15 @@ const Home: NextPage = () => {
     functionName: "owner",
   });
 
-  const { data: liveId } = useScaffoldReadContract({
-    contractName: "SlopComputer",
-    functionName: "live",
-  });
-
   const { data: episodeCount } = useScaffoldReadContract({
     contractName: "SlopComputer",
     functionName: "episodeCount",
   });
 
-  // One read replaces `getEpisode(live)` — and on the first page it's the same data we'd render up top.
-  const { data: latestEpisode } = useScaffoldReadContract({
+  // Single read for the live hero — returns zero-struct when offline.
+  const { data: liveEpisodeData } = useScaffoldReadContract({
     contractName: "SlopComputer",
-    functionName: "latest",
+    functionName: "liveEpisode",
   });
 
   // Fetch two extra so we can both (a) tell whether more pages exist and
@@ -63,10 +73,11 @@ const Home: NextPage = () => {
   });
 
   const isOwner = !!connectedAddress && !!owner && connectedAddress.toLowerCase() === owner.toLowerCase();
-  const isLive = !!liveId && liveId !== ZERO_BYTES32;
-  const heroEpisode = isLive && latestEpisode && latestEpisode.id === liveId ? latestEpisode : undefined;
+  const heroEpisode = liveEpisodeData && liveEpisodeData.id !== ZERO_BYTES32 ? liveEpisodeData : undefined;
+  const isLive = !!heroEpisode;
+  const liveId = heroEpisode?.id;
 
-  const filtered = (rawEpisodes ?? []).filter(ep => ep.id !== liveId);
+  const filtered = (rawEpisodes ?? []).filter(ep => !liveId || ep.id !== liveId);
   const visible = filtered.slice(0, Number(PAGE_SIZE));
   const hasMore = filtered.length > Number(PAGE_SIZE);
 
@@ -89,7 +100,7 @@ const Home: NextPage = () => {
   const onAdd = async () => {
     await writeContractAsync({
       functionName: "addEpisode",
-      args: [addForm.name, addForm.contractAddr || ZERO_ADDRESS, addForm.url, addForm.datetime],
+      args: [addForm.name, addForm.contractAddr || ZERO_ADDRESS, addForm.url, toUnix(addForm.datetime)],
     });
     setAddForm(emptyForm);
     resetPaging();
@@ -98,7 +109,7 @@ const Home: NextPage = () => {
   const onGoLive = async () => {
     await writeContractAsync({
       functionName: "goLive",
-      args: [liveForm.name, liveForm.contractAddr || ZERO_ADDRESS, liveForm.url, liveForm.datetime],
+      args: [liveForm.name, liveForm.contractAddr || ZERO_ADDRESS, liveForm.url, toUnix(liveForm.datetime)],
     });
     setLiveForm(emptyForm);
     resetPaging();
@@ -130,7 +141,7 @@ const Home: NextPage = () => {
             </div>
             <div className="text-sm opacity-80 break-all">
               <div>{heroEpisode.url}</div>
-              <div>{heroEpisode.datetime}</div>
+              <div>{formatUnix(heroEpisode.datetime)}</div>
               <div className="flex items-center gap-2">
                 contract: <Address address={heroEpisode.contractAddr} size="xs" />
               </div>
@@ -204,7 +215,7 @@ const Home: NextPage = () => {
                     <div className="flex justify-between items-start gap-3">
                       <div className="min-w-0">
                         <div className="font-bold">{ep.name}</div>
-                        <div className="text-xs opacity-70 break-all">{ep.datetime}</div>
+                        <div className="text-xs opacity-70 break-all">{formatUnix(ep.datetime)}</div>
                         {ep.url && <div className="text-xs opacity-70 break-all">{ep.url}</div>}
                         <div className="text-xs flex items-center gap-2 mt-1">
                           contract: <Address address={ep.contractAddr} size="xs" />
@@ -258,8 +269,8 @@ const Panel = ({ title, form, setForm, onSubmit, submitLabel, disabled }: PanelP
       onChange={e => setForm({ ...form, url: e.target.value })}
     />
     <input
+      type="datetime-local"
       className="input input-bordered input-sm"
-      placeholder="datetime"
       value={form.datetime}
       onChange={e => setForm({ ...form, datetime: e.target.value })}
     />
