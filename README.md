@@ -1,83 +1,175 @@
-# 🏗 Scaffold-ETH 2
+# slop.computer — Episode Registry
 
-<h4 align="center">
-  <a href="https://docs.scaffoldeth.io">Documentation</a> |
-  <a href="https://scaffoldeth.io">Website</a>
-</h4>
+Onchain registry of [slop.computer](https://slop.computer) episodes plus a "live now" pointer. Episodes are stored in a singly-linked list with the head pointing at the newest entry — readers paginate from the head without needing an indexer or subgraph.
 
-🧪 An open-source, up-to-date toolkit for building decentralized applications (dapps) on the Ethereum blockchain. It's designed to make it easier for developers to create and deploy smart contracts and build user interfaces that interact with those contracts.
+## Live Deployment
 
-> [!NOTE]
-> 🤖 Scaffold-ETH 2 is AI-ready! It has everything agents need to build on Ethereum. Check `.agents/`, `.claude/`, `.opencode` or `.cursor/` for more info.
+| Network | Address | Owner |
+| --- | --- | --- |
+| Ethereum Mainnet (chainId `1`) | [`0x5b448e5E6161dBd039F435b07Ba96b69ca2c76F3`](https://etherscan.io/address/0x5b448e5e6161dbd039f435b07ba96b69ca2c76f3) | [`atg.eth`](https://etherscan.io/address/0x34aA3F359A9D614239015126635CE7732c18fDF3) (`0x34aA3F359A9D614239015126635CE7732c18fDF3`) |
 
-⚙️ Built using NextJS, RainbowKit, Foundry, Wagmi, Viem, and Typescript.
+Source and tooling:
 
-- ✅ **Contract Hot Reload**: Your frontend auto-adapts to your smart contract as you edit it.
-- 🪝 **[Custom hooks](https://docs.scaffoldeth.io/hooks/)**: Collection of React hooks wrapper around [wagmi](https://wagmi.sh/) to simplify interactions with smart contracts with typescript autocompletion.
-- 🧱 [**Components**](https://docs.scaffoldeth.io/components/): Collection of common web3 components to quickly build your frontend.
-- 🔥 **Burner Wallet & Local Faucet**: Quickly test your application with a burner wallet and local faucet.
-- 🔐 **Integration with Wallet Providers**: Connect to different wallet providers and interact with the Ethereum network.
+- **Contract source:** [`packages/foundry/contracts/SlopComputer.sol`](packages/foundry/contracts/SlopComputer.sol)
+- **Deploy script:** [`packages/foundry/script/DeploySlopComputer.s.sol`](packages/foundry/script/DeploySlopComputer.s.sol)
+- **ABI (auto-generated for the frontend):** [`packages/nextjs/contracts/deployedContracts.ts`](packages/nextjs/contracts/deployedContracts.ts) — keyed by chain id (`1` for mainnet, `31337` for local anvil)
+- **Frontend:** [`packages/nextjs`](packages/nextjs) (Next.js + RainbowKit + Wagmi)
 
-![Debug Contracts tab](https://github.com/scaffold-eth/scaffold-eth-2/assets/55535804/b237af0c-5027-4849-a5c1-2e31495cccb1)
+The deploy script (`DeploySlopComputer.s.sol`) hardcodes `atg.eth` as the owner on every non-local chain and reverts the broadcast if the post-construction owner doesn't match — belt-and-suspenders against accidental misdeploys.
 
-## Requirements
+## Data Model
 
-Before you begin, you need to install the following tools:
+### `Episode`
 
-- [Node (>= v20.18.3)](https://nodejs.org/en/download/)
-- Yarn ([v1](https://classic.yarnpkg.com/en/docs/install/) or [v2+](https://yarnpkg.com/getting-started/install))
-- [Git](https://git-scm.com/downloads)
-
-## Quickstart
-
-To get started with Scaffold-ETH 2, follow the steps below:
-
-1. Install dependencies if it was skipped in CLI:
-
+```solidity
+struct Episode {
+    bytes32 id;            // content-addressed; see "ID derivation" below
+    string  name;          // display name, immutable per id
+    address contractAddr;  // optional per-episode contract; mutable
+    string  url;           // HLS / ipfs:// / https://… ; mutable
+    uint256 datetime;      // unix seconds; immutable
+    bytes32 nextId;        // next entry in the linked list; 0x0 at the tail
+}
 ```
-cd my-dapp-example
+
+### Singleton state
+
+| Storage | Type | Description |
+| --- | --- | --- |
+| `head` | `bytes32` | Newest episode id. `0x0` when the list is empty. |
+| `live` | `bytes32` | Currently-live episode id. `0x0` when offline. |
+| `episodeCount` | `uint256` | Number of episodes currently stored. |
+
+### ID derivation
+
+Episode ids are content-addressed by the immutable subset (`name`, `datetime`) plus this contract's address. `url` and `contractAddr` are mutable and intentionally excluded from the hash, so they can be swapped (e.g. live HLS → recorded `ipfs://…`) without changing the id.
+
+```solidity
+function getId(string memory name, uint256 datetime) public view returns (bytes32) {
+    return keccak256(abi.encode(address(this), name, datetime));
+}
+```
+
+Two episodes with the same `(name, datetime)` collide — the second call reverts with `EpisodeAlreadyExists(id)`.
+
+## Reading the Registry
+
+All read functions are `view` and free. No indexer required.
+
+| Function | Returns | Notes |
+| --- | --- | --- |
+| `head()` | `bytes32` | Newest episode id. |
+| `live()` | `bytes32` | Live episode id, or `0x0` when offline. |
+| `episodeCount()` | `uint256` | Number of episodes. |
+| `getEpisode(bytes32 id)` | `Episode` | Reverts `EpisodeNotFound` if missing. |
+| `latest()` | `Episode` | Live episode if any, else head. Zero-struct (`id == 0x0`) if empty. |
+| `liveEpisode()` | `Episode` | Live episode, or zero-struct when offline. |
+| `indexOf(bytes32 id)` | `uint256` | Position from head (0 = newest). Reverts if missing. |
+| `getEpisodes(uint256 index, uint256 amount)` | `Episode[]` | Page starting `index` from the head. |
+| `getEpisodesFrom(bytes32 startId, uint256 amount)` | `Episode[]` | Cursor-based pagination; pass `0x0` for the first page, then pass the previous page's last `nextId`. |
+| `getId(string name, uint256 datetime)` | `bytes32` | Derive the id `addEpisode` / `goLive` would assign for these inputs. |
+
+## Writing to the Registry (owner-only)
+
+All state-changing functions revert if not called by `owner()` (OpenZeppelin `Ownable`).
+
+| Function | Description |
+| --- | --- |
+| `addEpisode(string name, address contractAddr, string url, uint256 datetime)` | Push a new episode to the head. Returns the new `bytes32 id`. |
+| `goLive(string name, address contractAddr, string url, uint256 datetime)` | Push a new episode AND mark it as currently live. Returns the new `bytes32 id`. |
+| `setLive(bytes32 id)` | Mark an existing episode as live (use to resume after `goOffline` — `goLive` would revert `EpisodeAlreadyExists` for the same content). |
+| `setEpisodeContract(bytes32 id, address contractAddr)` | Update an episode's contract address. Id is unchanged. |
+| `setEpisodeUrl(bytes32 id, string url)` | Update an episode's URL (live → recorded flow). Id is unchanged. |
+| `goOffline()` | Clear the `live` pointer. The episode itself stays in the list. |
+| `deleteEpisode(bytes32 id)` | Remove an episode from the list. Splices the linked list; clears `live` if it pointed here. |
+
+## Events
+
+```solidity
+event EpisodeAdded(bytes32 indexed id, string name, address contractAddr, string url, uint256 datetime);
+event EpisodeContractSet(bytes32 indexed id, address contractAddr);
+event EpisodeUrlSet(bytes32 indexed id, string url);
+event EpisodeDeleted(bytes32 indexed id);
+event WentLive(bytes32 indexed id);
+event WentOffline(bytes32 indexed previousLive);
+```
+
+## Errors
+
+```solidity
+error EpisodeNotFound(bytes32 id);
+error EpisodeAlreadyExists(bytes32 id);
+error NotLive();
+```
+
+## Frontend
+
+The Next.js frontend in [`packages/nextjs`](packages/nextjs) reads from the live mainnet deployment by default. Network targeting is configured in [`packages/nextjs/scaffold.config.ts`](packages/nextjs/scaffold.config.ts):
+
+```ts
+targetNetworks: [chains.mainnet, chains.foundry],
+```
+
+Mainnet is the default; local anvil is available as a fallback for development.
+
+The home page paginates the linked list from the head and highlights the live/latest episode via `latest()`. Contract reads go through the SE-2 hooks (`useScaffoldReadContract`, `useScaffoldEventHistory`) which pull the ABI and chain-keyed address from `deployedContracts.ts`.
+
+## Local Development
+
+This repo is a [Scaffold-ETH 2](https://scaffoldeth.io) project (Foundry flavor).
+
+### Requirements
+
+- [Node ≥ v20.18.3](https://nodejs.org/en/download/)
+- [Yarn](https://classic.yarnpkg.com/en/docs/install/)
+- [Foundry](https://book.getfoundry.sh/getting-started/installation)
+
+### Quickstart
+
+```bash
 yarn install
+yarn chain       # local anvil — terminal 1
+yarn deploy      # terminal 2 — deploys SlopComputer to chainId 31337
+yarn start       # terminal 3 — http://localhost:3000
 ```
 
-2. Run a local network in the first terminal:
+On local anvil the deployer is set as `owner` so the **Debug Contracts** page can exercise owner-only methods (`addEpisode`, `goLive`, etc.).
 
-```
-yarn chain
-```
+### Tests
 
-This command starts a local Ethereum network using Foundry. The network runs on your local machine and can be used for testing and development. You can customize the network configuration in `packages/foundry/foundry.toml`.
-
-3. On a second terminal, deploy the test contract:
-
-```
-yarn deploy
+```bash
+yarn foundry:test
 ```
 
-This command deploys a test smart contract to the local network. The contract is located in `packages/foundry/contracts` and can be modified to suit your needs. The `yarn deploy` command uses the deploy script located in `packages/foundry/script` to deploy the contract to the network. You can also customize the deploy script.
+### Deploy to a live network
 
-4. On a third terminal, start your NextJS app:
+```bash
+# specifically deploy the SlopComputer
+yarn deploy --file DeploySlopComputer.s.sol --network mainnet
+```
+
+The script reverts on any non-local chain unless the deployed owner is `atg.eth` — see [`DeploySlopComputer.s.sol`](packages/foundry/script/DeploySlopComputer.s.sol).
+
+## Repo Layout
 
 ```
-yarn start
+packages/
+├── foundry/
+│   ├── contracts/SlopComputer.sol          # the registry contract
+│   ├── script/DeploySlopComputer.s.sol     # deploy script (atg.eth-guarded)
+│   ├── test/                                # forge tests
+│   └── foundry.toml                         # rpc endpoints, profile config
+└── nextjs/
+    ├── app/                                 # Next.js App Router pages
+    ├── contracts/deployedContracts.ts       # auto-generated ABIs by chainId
+    ├── hooks/scaffold-eth/                  # typed contract-read/write hooks
+    └── scaffold.config.ts                   # target networks, polling, keys
 ```
 
-Visit your app on: `http://localhost:3000`. You can interact with your smart contract using the `Debug Contracts` page. You can tweak the app config in `packages/nextjs/scaffold.config.ts`.
+## Tech Stack
 
-Run smart contract test with `yarn foundry:test`
+Foundry · OpenZeppelin (`Ownable`) · Next.js 15 · RainbowKit · Wagmi · Viem · TypeScript · Tailwind + DaisyUI · [Scaffold-ETH 2](https://scaffoldeth.io).
 
-- Edit your smart contracts in `packages/foundry/contracts`
-- Edit your frontend homepage at `packages/nextjs/app/page.tsx`. For guidance on [routing](https://nextjs.org/docs/app/building-your-application/routing/defining-routes) and configuring [pages/layouts](https://nextjs.org/docs/app/building-your-application/routing/pages-and-layouts) checkout the Next.js documentation.
-- Edit your deployment scripts in `packages/foundry/script`
+## License
 
-
-## Documentation
-
-Visit our [docs](https://docs.scaffoldeth.io) to learn how to start building with Scaffold-ETH 2.
-
-To know more about its features, check out our [website](https://scaffoldeth.io).
-
-## Contributing to Scaffold-ETH 2
-
-We welcome contributions to Scaffold-ETH 2!
-
-Please see [CONTRIBUTING.MD](https://github.com/scaffold-eth/scaffold-eth-2/blob/main/CONTRIBUTING.md) for more information and guidelines for contributing to Scaffold-ETH 2.
+MIT — see [`LICENCE`](LICENCE).
