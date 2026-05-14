@@ -16,9 +16,12 @@ fork: setup-anvil-wallet
 	anvil --fork-url ${FORK_URL} --chain-id 31337
 
 # Deploy the contracts
+# Optional: set GAS_PRICE=<wei> to cap maxFeePerGas via `forge --with-gas-price`.
+# Example: `GAS_PRICE=300000000 yarn deploy --network mainnet` caps at 0.3 gwei.
+GAS_PRICE_FLAG := $(if $(GAS_PRICE),--with-gas-price $(GAS_PRICE),)
 deploy:
 	@if [ ! -f "$(DEPLOY_SCRIPT)" ]; then 		echo "Error: Deploy script '$(DEPLOY_SCRIPT)' not found"; 		exit 1; 	fi
-	@if [ "$(RPC_URL)" = "localhost" ]; then 		if [ "$(ETH_KEYSTORE_ACCOUNT)" = "scaffold-eth-default" ]; then 			forge script $(DEPLOY_SCRIPT) --rpc-url localhost --password localhost --broadcast --ffi; 		else 			forge script $(DEPLOY_SCRIPT) --rpc-url localhost --broadcast --ffi; 		fi 	else 		forge script $(DEPLOY_SCRIPT) --rpc-url $(RPC_URL) --broadcast --ffi; 	fi
+	@if [ "$(RPC_URL)" = "localhost" ]; then 		if [ "$(ETH_KEYSTORE_ACCOUNT)" = "scaffold-eth-default" ]; then 			forge script $(DEPLOY_SCRIPT) --rpc-url localhost --password localhost --broadcast --ffi $(GAS_PRICE_FLAG); 		else 			forge script $(DEPLOY_SCRIPT) --rpc-url localhost --broadcast --ffi $(GAS_PRICE_FLAG); 		fi 	else 		forge script $(DEPLOY_SCRIPT) --rpc-url $(RPC_URL) --broadcast --ffi $(GAS_PRICE_FLAG); 	fi
 
 # Deploy and generate ABIs
 deploy-and-generate-abis: deploy generate-abis 

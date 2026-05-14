@@ -33,13 +33,13 @@ contract SlopComputerTest is Test {
     function test_addEpisode_revertsForNonOwner() public {
         vm.prank(stranger);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
-        sc.addEpisode("ep", address(0), "ipfs://x", DT);
+        sc.addEpisode("ep", "ep-slug", "", address(0), DT);
     }
 
     function test_goLive_revertsForNonOwner() public {
         vm.prank(stranger);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
-        sc.goLive("ep", address(0), "ipfs://x", DT);
+        sc.goLive("ep", "ep-slug", "", address(0), DT);
     }
 
     function test_deleteEpisode_revertsForNonOwner() public {
@@ -61,6 +61,7 @@ contract SlopComputerTest is Test {
         SlopComputer.Episode memory ep = sc.getEpisode(id);
         assertEq(ep.id, id);
         assertEq(ep.name, "first");
+        assertEq(ep.slug, "first");
         assertEq(ep.datetime, DT);
         assertEq(ep.nextId, bytes32(0));
     }
@@ -96,25 +97,25 @@ contract SlopComputerTest is Test {
         assertEq(once, twice);
     }
 
-    function test_getId_ignoresUrlAndContractAddr() public {
-        // url and contractAddr are mutable via setters, so they must not be part of the id.
-        // Adding two episodes with the same (name, datetime) must collide regardless of url.
+    function test_getId_ignoresMutableFields() public {
+        // slug, manifest, contractAddr are all mutable via setters, so they must
+        // not be part of the id. Two episodes with the same (name, datetime)
+        // collide regardless of the other fields (here distinguished by slug
+        // so the slug-uniqueness check doesn't trip first).
         vm.prank(owner);
-        sc.addEpisode("name", address(0xAAA), "url-a", DT);
+        sc.addEpisode("name", "first-slug", "ipfs://a", address(0xAAA), DT);
         bytes32 expected = sc.getId("name", DT);
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(SlopComputer.EpisodeAlreadyExists.selector, expected));
-        sc.addEpisode("name", address(0xBBB), "url-b", DT);
+        sc.addEpisode("name", "second-slug", "ipfs://b", address(0xBBB), DT);
     }
 
     function test_getId_differsAcrossContractAddresses() public {
         SlopComputer other = new SlopComputer(owner);
-        // Same content, but different `address(this)` → different id.
         assertTrue(sc.getId("a", DT) != other.getId("a", DT));
     }
 
     function test_getId_differsByDatetime() public view {
-        // Different timestamps → different ids (the whole point of swapping string→uint256).
         assertTrue(sc.getId("a", DT) != sc.getId("a", DT + 1));
     }
 
@@ -123,7 +124,17 @@ contract SlopComputerTest is Test {
         bytes32 expected = sc.getId("dup", DT);
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(SlopComputer.EpisodeAlreadyExists.selector, expected));
-        sc.addEpisode("dup", address(0), "different-url", DT);
+        sc.addEpisode("dup", "different-slug", "ipfs://b", address(0), DT);
+    }
+
+    function test_addEpisode_duplicateContentReportsContentErrorEvenIfSlugAlsoReused() public {
+        // Same (name, datetime) AND same slug — id-collision must fire first so
+        // the caller sees the real cause, not a misleading SlugAlreadyTaken.
+        _addAs(owner, "dup");
+        bytes32 expected = sc.getId("dup", DT);
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(SlopComputer.EpisodeAlreadyExists.selector, expected));
+        sc.addEpisode("dup", "dup", "ipfs://b", address(0), DT);
     }
 
     function test_addEpisode_canReuseIdAfterDelete() public {
@@ -136,14 +147,225 @@ contract SlopComputerTest is Test {
     }
 
     function test_addEpisode_emitsEvent() public {
-        // We can't predict the id ahead of time, so we just check the event topic
-        // matches the new uint256 datetime signature.
         vm.recordLogs();
         vm.prank(owner);
-        sc.addEpisode("hello", address(0xCAFE), "ipfs://abc", DT);
+        sc.addEpisode("hello", "hello-slug", "ipfs://abc", address(0xCAFE), DT);
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EpisodeAdded(bytes32,string,address,string,uint256)"));
+        assertEq(entries[0].topics[0], keccak256("EpisodeAdded(bytes32,string,string,string,address,uint256)"));
+    }
+
+    // -------------------------------------------------------------------------
+    // slug — validation, uniqueness, lookup
+    // -------------------------------------------------------------------------
+
+    function test_addEpisode_indexesSlug() public {
+        bytes32 id = _addAs(owner, "indexed");
+        assertEq(sc.slugToId("indexed"), id);
+    }
+
+    function test_addEpisode_revertsOnDuplicateSlug() public {
+        _addAs(owner, "first");
+        vm.prank(owner);
+        vm.expectRevert(SlopComputer.SlugAlreadyTaken.selector);
+        // Same slug but different (name, datetime) so the id-collision check
+        // wouldn't trip first — slug check has to.
+        sc.addEpisode("different-name", "first", "", address(0), DT + 1);
+    }
+
+    function test_addEpisode_revertsOnEmptySlug() public {
+        vm.prank(owner);
+        vm.expectRevert(SlopComputer.SlugInvalid.selector);
+        sc.addEpisode("ep", "", "", address(0), DT);
+    }
+
+    function test_addEpisode_revertsOnSlugWithUppercase() public {
+        vm.prank(owner);
+        vm.expectRevert(SlopComputer.SlugInvalid.selector);
+        sc.addEpisode("ep", "Ep-One", "", address(0), DT);
+    }
+
+    function test_addEpisode_revertsOnSlugWithUnderscore() public {
+        vm.prank(owner);
+        vm.expectRevert(SlopComputer.SlugInvalid.selector);
+        sc.addEpisode("ep", "ep_one", "", address(0), DT);
+    }
+
+    function test_addEpisode_revertsOnSlugWithSlash() public {
+        vm.prank(owner);
+        vm.expectRevert(SlopComputer.SlugInvalid.selector);
+        sc.addEpisode("ep", "ep/one", "", address(0), DT);
+    }
+
+    function test_addEpisode_revertsOnSlugTooLong() public {
+        vm.prank(owner);
+        vm.expectRevert(SlopComputer.SlugInvalid.selector);
+        // 65 'a's
+        sc.addEpisode("ep", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "", address(0), DT);
+    }
+
+    function test_addEpisode_revertsOnLeadingDash() public {
+        vm.prank(owner);
+        vm.expectRevert(SlopComputer.SlugInvalid.selector);
+        sc.addEpisode("ep", "-pilot", "", address(0), DT);
+    }
+
+    function test_addEpisode_revertsOnTrailingDash() public {
+        vm.prank(owner);
+        vm.expectRevert(SlopComputer.SlugInvalid.selector);
+        sc.addEpisode("ep", "pilot-", "", address(0), DT);
+    }
+
+    function test_addEpisode_revertsOnAllDashSlug() public {
+        vm.prank(owner);
+        vm.expectRevert(SlopComputer.SlugInvalid.selector);
+        sc.addEpisode("ep", "---", "", address(0), DT);
+    }
+
+    function test_addEpisode_acceptsInnerDoubleDash() public {
+        vm.prank(owner);
+        bytes32 id = sc.addEpisode("ep", "the--episode", "", address(0), DT);
+        assertEq(sc.getEpisode(id).slug, "the--episode");
+    }
+
+    function test_addEpisode_acceptsSlugAtMaxLength() public {
+        // 64 'a's
+        string memory slug = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        vm.prank(owner);
+        bytes32 id = sc.addEpisode("ep", slug, "", address(0), DT);
+        assertEq(sc.getEpisode(id).slug, slug);
+    }
+
+    function test_addEpisode_acceptsDigitsAndDashes() public {
+        vm.prank(owner);
+        bytes32 id = sc.addEpisode("ep", "ep-001-pilot", "", address(0), DT);
+        assertEq(sc.getEpisode(id).slug, "ep-001-pilot");
+    }
+
+    function test_getEpisodeBySlug_returnsMatchingEpisode() public {
+        bytes32 id = _addAs(owner, "fetch-by-slug");
+        SlopComputer.Episode memory ep = sc.getEpisodeBySlug("fetch-by-slug");
+        assertEq(ep.id, id);
+        assertEq(ep.slug, "fetch-by-slug");
+    }
+
+    function test_getEpisodeBySlug_revertsForUnknownSlug() public {
+        vm.expectRevert(abi.encodeWithSelector(SlopComputer.SlugNotFound.selector, "never-existed"));
+        sc.getEpisodeBySlug("never-existed");
+    }
+
+    function test_setSlug_updatesField() public {
+        bytes32 id = _addAs(owner, "old");
+        vm.prank(owner);
+        sc.setSlug(id, "new");
+        assertEq(sc.getEpisode(id).slug, "new");
+    }
+
+    function test_setSlug_updatesIndex() public {
+        bytes32 id = _addAs(owner, "old");
+        vm.prank(owner);
+        sc.setSlug(id, "new");
+        assertEq(sc.slugToId("new"), id);
+        assertEq(sc.slugToId("old"), bytes32(0));
+    }
+
+    function test_setSlug_acceptsNoOpRename() public {
+        bytes32 id = _addAs(owner, "same");
+        vm.prank(owner);
+        sc.setSlug(id, "same"); // should not revert
+        assertEq(sc.slugToId("same"), id);
+    }
+
+    function test_setSlug_revertsOnCollision() public {
+        _addAs(owner, "taken");
+        bytes32 id = _addAs(owner, "other");
+        vm.prank(owner);
+        vm.expectRevert(SlopComputer.SlugAlreadyTaken.selector);
+        sc.setSlug(id, "taken");
+    }
+
+    function test_setSlug_revertsOnInvalidSlug() public {
+        bytes32 id = _addAs(owner, "ep");
+        vm.prank(owner);
+        vm.expectRevert(SlopComputer.SlugInvalid.selector);
+        sc.setSlug(id, "Bad Slug");
+    }
+
+    function test_setSlug_revertsForNonOwner() public {
+        bytes32 id = _addAs(owner, "ep");
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        sc.setSlug(id, "renamed");
+    }
+
+    function test_setSlug_revertsForUnknownId() public {
+        bytes32 fake = keccak256("nope");
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(SlopComputer.EpisodeNotFound.selector, fake));
+        sc.setSlug(fake, "anything");
+    }
+
+    function test_delete_freesSlug() public {
+        bytes32 id = _addAs(owner, "free-me");
+        vm.prank(owner);
+        sc.deleteEpisode(id);
+        assertEq(sc.slugToId("free-me"), bytes32(0));
+
+        // And the slug is reusable on a fresh add.
+        bytes32 readded = _addAs(owner, "free-me");
+        assertEq(sc.slugToId("free-me"), readded);
+    }
+
+    // -------------------------------------------------------------------------
+    // setManifest — the live → recorded flow
+    // -------------------------------------------------------------------------
+
+    function test_setManifest_updatesField() public {
+        bytes32 id = _addAs(owner, "ep");
+        vm.prank(owner);
+        sc.setManifest(id, "ipfs://recorded");
+        assertEq(sc.getEpisode(id).manifest, "ipfs://recorded");
+    }
+
+    function test_setManifest_doesNotChangeId() public {
+        bytes32 id = _addAs(owner, "ep");
+        vm.prank(owner);
+        sc.setManifest(id, "ipfs://anything");
+        assertEq(sc.head(), id);
+        assertEq(sc.getEpisode(id).id, id);
+    }
+
+    function test_setManifest_liveToRecordedFlow() public {
+        // Go live with an empty manifest (audience plays HLS while live == id),
+        // then publish the manifest at finalize time.
+        vm.prank(owner);
+        bytes32 id = sc.goLive("episode 1", "episode-1", "", address(0), DT);
+        assertEq(sc.live(), id);
+        assertEq(sc.getEpisode(id).manifest, "");
+
+        vm.prank(owner);
+        sc.goOffline();
+
+        vm.prank(owner);
+        sc.setManifest(id, "ipfs://QmManifest");
+
+        SlopComputer.Episode memory ep = sc.getEpisode(id);
+        assertEq(ep.manifest, "ipfs://QmManifest");
+        assertEq(ep.id, id); // id stable across the whole flow
+    }
+
+    function test_setManifest_revertsForNonOwner() public {
+        bytes32 id = _addAs(owner, "ep");
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        sc.setManifest(id, "ipfs://nope");
+    }
+
+    function test_setManifest_revertsForUnknownId() public {
+        bytes32 fake = keccak256("nope");
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(SlopComputer.EpisodeNotFound.selector, fake));
+        sc.setManifest(fake, "ipfs://nope");
     }
 
     // -------------------------------------------------------------------------
@@ -181,61 +403,11 @@ contract SlopComputerTest is Test {
     }
 
     // -------------------------------------------------------------------------
-    // setEpisodeUrl — the live → recorded flow
-    // -------------------------------------------------------------------------
-
-    function test_setEpisodeUrl_updatesField() public {
-        bytes32 id = _addAs(owner, "ep");
-        vm.prank(owner);
-        sc.setEpisodeUrl(id, "ipfs://recorded");
-        assertEq(sc.getEpisode(id).url, "ipfs://recorded");
-    }
-
-    function test_setEpisodeUrl_doesNotChangeId() public {
-        bytes32 id = _addAs(owner, "ep");
-        vm.prank(owner);
-        sc.setEpisodeUrl(id, "anything");
-        assertEq(sc.head(), id);
-        assertEq(sc.getEpisode(id).id, id);
-    }
-
-    function test_setEpisodeUrl_liveToRecordedFlow() public {
-        // Owner goes live with an HLS stream url, then swaps to ipfs:// after recording.
-        vm.prank(owner);
-        bytes32 id = sc.goLive("episode 1", address(0), "https://hls.example/live.m3u8", DT);
-        assertEq(sc.live(), id);
-
-        vm.prank(owner);
-        sc.goOffline();
-
-        vm.prank(owner);
-        sc.setEpisodeUrl(id, "ipfs://QmRecorded");
-
-        SlopComputer.Episode memory ep = sc.getEpisode(id);
-        assertEq(ep.url, "ipfs://QmRecorded");
-        assertEq(ep.id, id); // id stable across the whole flow
-    }
-
-    function test_setEpisodeUrl_revertsForNonOwner() public {
-        bytes32 id = _addAs(owner, "ep");
-        vm.prank(stranger);
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
-        sc.setEpisodeUrl(id, "ipfs://nope");
-    }
-
-    function test_setEpisodeUrl_revertsForUnknownId() public {
-        bytes32 fake = keccak256("nope");
-        vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(SlopComputer.EpisodeNotFound.selector, fake));
-        sc.setEpisodeUrl(fake, "ipfs://nope");
-    }
-
-    // -------------------------------------------------------------------------
     // goLive / goOffline / setLive
     // -------------------------------------------------------------------------
 
     function test_goLive_setsLivePointer() public {
-        bytes32 id = _goLiveAs(owner, "live show");
+        bytes32 id = _goLiveAs(owner, "live-show");
         assertEq(sc.live(), id);
         assertEq(sc.head(), id);
         assertEq(sc.episodeCount(), 1);
@@ -282,8 +454,6 @@ contract SlopComputerTest is Test {
     }
 
     function test_setLive_resumesAfterGoOffline() public {
-        // The bug we're fixing: after goOffline, you couldn't goLive the same
-        // content — EpisodeAlreadyExists. setLive lets you resume in place.
         bytes32 id = _goLiveAs(owner, "stream");
 
         vm.prank(owner);
@@ -488,13 +658,13 @@ contract SlopComputerTest is Test {
 
     function test_getEpisodesFrom_walksWholeListInPages() public {
         bytes32[] memory ids = new bytes32[](7);
-        ids[0] = _addAs(owner, "ep0"); // tail
+        ids[0] = _addAs(owner, "ep0");
         ids[1] = _addAs(owner, "ep1");
         ids[2] = _addAs(owner, "ep2");
         ids[3] = _addAs(owner, "ep3");
         ids[4] = _addAs(owner, "ep4");
         ids[5] = _addAs(owner, "ep5");
-        ids[6] = _addAs(owner, "ep6"); // head (newest)
+        ids[6] = _addAs(owner, "ep6");
 
         SlopComputer.Episode[] memory page1 = sc.getEpisodesFrom(bytes32(0), 3);
         SlopComputer.Episode[] memory page2 = sc.getEpisodesFrom(page1[page1.length - 1].nextId, 3);
@@ -636,21 +806,22 @@ contract SlopComputerTest is Test {
         assertEq(sc.owner(), newOwner);
 
         vm.prank(newOwner);
-        sc.addEpisode("post-handoff", address(0), "", 0);
+        sc.addEpisode("post-handoff", "post-handoff", "", address(0), 0);
         assertEq(sc.episodeCount(), 1);
     }
 
     // -------------------------------------------------------------------------
-    // helpers
+    // helpers — uses `name` as the slug too for brevity (slugs are validated
+    // a-z 0-9 -, so test names like "a", "b", "ep0", "first" pass through)
     // -------------------------------------------------------------------------
 
     function _addAs(address who, string memory name) internal returns (bytes32) {
         vm.prank(who);
-        return sc.addEpisode(name, address(0), "ipfs://x", DT);
+        return sc.addEpisode(name, name, "", address(0), DT);
     }
 
     function _goLiveAs(address who, string memory name) internal returns (bytes32) {
         vm.prank(who);
-        return sc.goLive(name, address(0), "ipfs://x", DT);
+        return sc.goLive(name, name, "", address(0), DT);
     }
 }

@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   1: {
     SlopComputer: {
-      address: "0x5b448e5e6161dbd039f435b07ba96b69ca2c76f3",
+      address: "0x702bcfa3c32518cb40c6228471b26eeacbb28333",
       abi: [
         {
           type: "constructor",
@@ -30,14 +30,19 @@ const deployedContracts = {
               internalType: "string",
             },
             {
+              name: "slug",
+              type: "string",
+              internalType: "string",
+            },
+            {
+              name: "manifest",
+              type: "string",
+              internalType: "string",
+            },
+            {
               name: "contractAddr",
               type: "address",
               internalType: "address",
-            },
-            {
-              name: "url",
-              type: "string",
-              internalType: "string",
             },
             {
               name: "datetime",
@@ -107,14 +112,75 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "slug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
+                  name: "manifest",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "contractAddr",
                   type: "address",
                   internalType: "address",
                 },
                 {
-                  name: "url",
+                  name: "datetime",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "nextId",
+                  type: "bytes32",
+                  internalType: "bytes32",
+                },
+              ],
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "getEpisodeBySlug",
+          inputs: [
+            {
+              name: "slug",
+              type: "string",
+              internalType: "string",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "tuple",
+              internalType: "struct SlopComputer.Episode",
+              components: [
+                {
+                  name: "id",
+                  type: "bytes32",
+                  internalType: "bytes32",
+                },
+                {
+                  name: "name",
                   type: "string",
                   internalType: "string",
+                },
+                {
+                  name: "slug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
+                  name: "manifest",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
+                  name: "contractAddr",
+                  type: "address",
+                  internalType: "address",
                 },
                 {
                   name: "datetime",
@@ -163,14 +229,19 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "slug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
+                  name: "manifest",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "contractAddr",
                   type: "address",
                   internalType: "address",
-                },
-                {
-                  name: "url",
-                  type: "string",
-                  internalType: "string",
                 },
                 {
                   name: "datetime",
@@ -219,14 +290,19 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "slug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
+                  name: "manifest",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "contractAddr",
                   type: "address",
                   internalType: "address",
-                },
-                {
-                  name: "url",
-                  type: "string",
-                  internalType: "string",
                 },
                 {
                   name: "datetime",
@@ -277,14 +353,19 @@ const deployedContracts = {
               internalType: "string",
             },
             {
+              name: "slug",
+              type: "string",
+              internalType: "string",
+            },
+            {
+              name: "manifest",
+              type: "string",
+              internalType: "string",
+            },
+            {
               name: "contractAddr",
               type: "address",
               internalType: "address",
-            },
-            {
-              name: "url",
-              type: "string",
-              internalType: "string",
             },
             {
               name: "datetime",
@@ -361,14 +442,19 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "slug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
+                  name: "manifest",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "contractAddr",
                   type: "address",
                   internalType: "address",
-                },
-                {
-                  name: "url",
-                  type: "string",
-                  internalType: "string",
                 },
                 {
                   name: "datetime",
@@ -419,14 +505,19 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "slug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
+                  name: "manifest",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "contractAddr",
                   type: "address",
                   internalType: "address",
-                },
-                {
-                  name: "url",
-                  type: "string",
-                  internalType: "string",
                 },
                 {
                   name: "datetime",
@@ -483,24 +574,6 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "setEpisodeUrl",
-          inputs: [
-            {
-              name: "id",
-              type: "bytes32",
-              internalType: "bytes32",
-            },
-            {
-              name: "url",
-              type: "string",
-              internalType: "string",
-            },
-          ],
-          outputs: [],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
           name: "setLive",
           inputs: [
             {
@@ -511,6 +584,61 @@ const deployedContracts = {
           ],
           outputs: [],
           stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "setManifest",
+          inputs: [
+            {
+              name: "id",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+            {
+              name: "manifest",
+              type: "string",
+              internalType: "string",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "setSlug",
+          inputs: [
+            {
+              name: "id",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+            {
+              name: "newSlug",
+              type: "string",
+              internalType: "string",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "slugToId",
+          inputs: [
+            {
+              name: "",
+              type: "string",
+              internalType: "string",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+          ],
+          stateMutability: "view",
         },
         {
           type: "function",
@@ -542,16 +670,22 @@ const deployedContracts = {
               internalType: "string",
             },
             {
+              name: "slug",
+              type: "string",
+              indexed: false,
+              internalType: "string",
+            },
+            {
+              name: "manifest",
+              type: "string",
+              indexed: false,
+              internalType: "string",
+            },
+            {
               name: "contractAddr",
               type: "address",
               indexed: false,
               internalType: "address",
-            },
-            {
-              name: "url",
-              type: "string",
-              indexed: false,
-              internalType: "string",
             },
             {
               name: "datetime",
@@ -596,7 +730,7 @@ const deployedContracts = {
         },
         {
           type: "event",
-          name: "EpisodeUrlSet",
+          name: "EpisodeManifestSet",
           inputs: [
             {
               name: "id",
@@ -605,7 +739,26 @@ const deployedContracts = {
               internalType: "bytes32",
             },
             {
-              name: "url",
+              name: "manifest",
+              type: "string",
+              indexed: false,
+              internalType: "string",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "EpisodeSlugSet",
+          inputs: [
+            {
+              name: "id",
+              type: "bytes32",
+              indexed: true,
+              internalType: "bytes32",
+            },
+            {
+              name: "slug",
               type: "string",
               indexed: false,
               internalType: "string",
@@ -707,9 +860,30 @@ const deployedContracts = {
             },
           ],
         },
+        {
+          type: "error",
+          name: "SlugAlreadyTaken",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SlugInvalid",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SlugNotFound",
+          inputs: [
+            {
+              name: "slug",
+              type: "string",
+              internalType: "string",
+            },
+          ],
+        },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 25065921,
+      deployedOnBlock: 25095477,
     },
   },
   31337: {
@@ -737,14 +911,19 @@ const deployedContracts = {
               internalType: "string",
             },
             {
+              name: "slug",
+              type: "string",
+              internalType: "string",
+            },
+            {
+              name: "manifest",
+              type: "string",
+              internalType: "string",
+            },
+            {
               name: "contractAddr",
               type: "address",
               internalType: "address",
-            },
-            {
-              name: "url",
-              type: "string",
-              internalType: "string",
             },
             {
               name: "datetime",
@@ -814,14 +993,75 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "slug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
+                  name: "manifest",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "contractAddr",
                   type: "address",
                   internalType: "address",
                 },
                 {
-                  name: "url",
+                  name: "datetime",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "nextId",
+                  type: "bytes32",
+                  internalType: "bytes32",
+                },
+              ],
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "getEpisodeBySlug",
+          inputs: [
+            {
+              name: "slug",
+              type: "string",
+              internalType: "string",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "tuple",
+              internalType: "struct SlopComputer.Episode",
+              components: [
+                {
+                  name: "id",
+                  type: "bytes32",
+                  internalType: "bytes32",
+                },
+                {
+                  name: "name",
                   type: "string",
                   internalType: "string",
+                },
+                {
+                  name: "slug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
+                  name: "manifest",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
+                  name: "contractAddr",
+                  type: "address",
+                  internalType: "address",
                 },
                 {
                   name: "datetime",
@@ -870,14 +1110,19 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "slug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
+                  name: "manifest",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "contractAddr",
                   type: "address",
                   internalType: "address",
-                },
-                {
-                  name: "url",
-                  type: "string",
-                  internalType: "string",
                 },
                 {
                   name: "datetime",
@@ -926,14 +1171,19 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "slug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
+                  name: "manifest",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "contractAddr",
                   type: "address",
                   internalType: "address",
-                },
-                {
-                  name: "url",
-                  type: "string",
-                  internalType: "string",
                 },
                 {
                   name: "datetime",
@@ -984,14 +1234,19 @@ const deployedContracts = {
               internalType: "string",
             },
             {
+              name: "slug",
+              type: "string",
+              internalType: "string",
+            },
+            {
+              name: "manifest",
+              type: "string",
+              internalType: "string",
+            },
+            {
               name: "contractAddr",
               type: "address",
               internalType: "address",
-            },
-            {
-              name: "url",
-              type: "string",
-              internalType: "string",
             },
             {
               name: "datetime",
@@ -1068,14 +1323,19 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "slug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
+                  name: "manifest",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "contractAddr",
                   type: "address",
                   internalType: "address",
-                },
-                {
-                  name: "url",
-                  type: "string",
-                  internalType: "string",
                 },
                 {
                   name: "datetime",
@@ -1126,14 +1386,19 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "slug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
+                  name: "manifest",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "contractAddr",
                   type: "address",
                   internalType: "address",
-                },
-                {
-                  name: "url",
-                  type: "string",
-                  internalType: "string",
                 },
                 {
                   name: "datetime",
@@ -1190,24 +1455,6 @@ const deployedContracts = {
         },
         {
           type: "function",
-          name: "setEpisodeUrl",
-          inputs: [
-            {
-              name: "id",
-              type: "bytes32",
-              internalType: "bytes32",
-            },
-            {
-              name: "url",
-              type: "string",
-              internalType: "string",
-            },
-          ],
-          outputs: [],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
           name: "setLive",
           inputs: [
             {
@@ -1218,6 +1465,61 @@ const deployedContracts = {
           ],
           outputs: [],
           stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "setManifest",
+          inputs: [
+            {
+              name: "id",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+            {
+              name: "manifest",
+              type: "string",
+              internalType: "string",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "setSlug",
+          inputs: [
+            {
+              name: "id",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+            {
+              name: "newSlug",
+              type: "string",
+              internalType: "string",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "slugToId",
+          inputs: [
+            {
+              name: "",
+              type: "string",
+              internalType: "string",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+          ],
+          stateMutability: "view",
         },
         {
           type: "function",
@@ -1249,16 +1551,22 @@ const deployedContracts = {
               internalType: "string",
             },
             {
+              name: "slug",
+              type: "string",
+              indexed: false,
+              internalType: "string",
+            },
+            {
+              name: "manifest",
+              type: "string",
+              indexed: false,
+              internalType: "string",
+            },
+            {
               name: "contractAddr",
               type: "address",
               indexed: false,
               internalType: "address",
-            },
-            {
-              name: "url",
-              type: "string",
-              indexed: false,
-              internalType: "string",
             },
             {
               name: "datetime",
@@ -1303,7 +1611,7 @@ const deployedContracts = {
         },
         {
           type: "event",
-          name: "EpisodeUrlSet",
+          name: "EpisodeManifestSet",
           inputs: [
             {
               name: "id",
@@ -1312,7 +1620,26 @@ const deployedContracts = {
               internalType: "bytes32",
             },
             {
-              name: "url",
+              name: "manifest",
+              type: "string",
+              indexed: false,
+              internalType: "string",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "EpisodeSlugSet",
+          inputs: [
+            {
+              name: "id",
+              type: "bytes32",
+              indexed: true,
+              internalType: "bytes32",
+            },
+            {
+              name: "slug",
               type: "string",
               indexed: false,
               internalType: "string",
@@ -1411,6 +1738,27 @@ const deployedContracts = {
               name: "account",
               type: "address",
               internalType: "address",
+            },
+          ],
+        },
+        {
+          type: "error",
+          name: "SlugAlreadyTaken",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SlugInvalid",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SlugNotFound",
+          inputs: [
+            {
+              name: "slug",
+              type: "string",
+              internalType: "string",
             },
           ],
         },

@@ -14,13 +14,14 @@ type Hex32 = `0x${string}`;
 
 type EpisodeForm = {
   name: string;
+  slug: string;
+  manifest: string;
   contractAddr: string;
-  url: string;
   /** datetime-local value, e.g. "2026-05-09T14:30" — converted to unix seconds before send */
   datetime: string;
 };
 
-const emptyForm: EpisodeForm = { name: "", contractAddr: "", url: "", datetime: "" };
+const emptyForm: EpisodeForm = { name: "", slug: "", manifest: "", contractAddr: "", datetime: "" };
 
 const toUnix = (datetimeLocal: string): bigint => {
   if (!datetimeLocal) return 0n;
@@ -100,7 +101,13 @@ const Home: NextPage = () => {
   const onAdd = async () => {
     await writeContractAsync({
       functionName: "addEpisode",
-      args: [addForm.name, addForm.contractAddr || ZERO_ADDRESS, addForm.url, toUnix(addForm.datetime)],
+      args: [
+        addForm.name,
+        addForm.slug,
+        addForm.manifest,
+        addForm.contractAddr || ZERO_ADDRESS,
+        toUnix(addForm.datetime),
+      ],
     });
     setAddForm(emptyForm);
     resetPaging();
@@ -109,7 +116,13 @@ const Home: NextPage = () => {
   const onGoLive = async () => {
     await writeContractAsync({
       functionName: "goLive",
-      args: [liveForm.name, liveForm.contractAddr || ZERO_ADDRESS, liveForm.url, toUnix(liveForm.datetime)],
+      args: [
+        liveForm.name,
+        liveForm.slug,
+        liveForm.manifest,
+        liveForm.contractAddr || ZERO_ADDRESS,
+        toUnix(liveForm.datetime),
+      ],
     });
     setLiveForm(emptyForm);
     resetPaging();
@@ -140,7 +153,8 @@ const Home: NextPage = () => {
               <span className="text-xl font-bold">{heroEpisode.name}</span>
             </div>
             <div className="text-sm opacity-80 break-all">
-              <div>{heroEpisode.url}</div>
+              {heroEpisode.slug && <div>/{heroEpisode.slug}</div>}
+              {heroEpisode.manifest && <div>{heroEpisode.manifest}</div>}
               <div>{formatUnix(heroEpisode.datetime)}</div>
               <div className="flex items-center gap-2">
                 contract: <Address address={heroEpisode.contractAddr} size="xs" />
@@ -215,8 +229,9 @@ const Home: NextPage = () => {
                     <div className="flex justify-between items-start gap-3">
                       <div className="min-w-0">
                         <div className="font-bold">{ep.name}</div>
+                        {ep.slug && <div className="text-xs opacity-70 break-all">/{ep.slug}</div>}
                         <div className="text-xs opacity-70 break-all">{formatUnix(ep.datetime)}</div>
-                        {ep.url && <div className="text-xs opacity-70 break-all">{ep.url}</div>}
+                        {ep.manifest && <div className="text-xs opacity-70 break-all">{ep.manifest}</div>}
                         <div className="text-xs flex items-center gap-2 mt-1">
                           contract: <Address address={ep.contractAddr} size="xs" />
                         </div>
@@ -257,16 +272,22 @@ const Panel = ({ title, form, setForm, onSubmit, submitLabel, disabled }: PanelP
       value={form.name}
       onChange={e => setForm({ ...form, name: e.target.value })}
     />
+    <input
+      className="input input-bordered input-sm"
+      placeholder="slug (a-z 0-9 -, unique)"
+      value={form.slug}
+      onChange={e => setForm({ ...form, slug: e.target.value })}
+    />
+    <input
+      className="input input-bordered input-sm"
+      placeholder="manifest (ipfs://…, optional while live)"
+      value={form.manifest}
+      onChange={e => setForm({ ...form, manifest: e.target.value })}
+    />
     <AddressInput
       placeholder="contract address (optional)"
       value={form.contractAddr}
       onChange={v => setForm({ ...form, contractAddr: v })}
-    />
-    <input
-      className="input input-bordered input-sm"
-      placeholder="url (e.g. ipfs://… or hls)"
-      value={form.url}
-      onChange={e => setForm({ ...form, url: e.target.value })}
     />
     <input
       type="datetime-local"
@@ -274,7 +295,7 @@ const Panel = ({ title, form, setForm, onSubmit, submitLabel, disabled }: PanelP
       value={form.datetime}
       onChange={e => setForm({ ...form, datetime: e.target.value })}
     />
-    <button className="btn btn-primary btn-sm" disabled={disabled || !form.name} onClick={onSubmit}>
+    <button className="btn btn-primary btn-sm" disabled={disabled || !form.name || !form.slug} onClick={onSubmit}>
       {submitLabel}
     </button>
   </div>
