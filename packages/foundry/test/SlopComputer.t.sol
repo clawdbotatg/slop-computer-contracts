@@ -811,6 +811,91 @@ contract SlopComputerTest is Test {
     }
 
     // -------------------------------------------------------------------------
+    // addedAt + indexer-event additions
+    // -------------------------------------------------------------------------
+
+    function test_addedAt_isBlockTimestamp() public {
+        vm.warp(1_800_000_000);
+        bytes32 id = _addAs(owner, "ep0");
+        assertEq(sc.getEpisode(id).addedAt, 1_800_000_000);
+    }
+
+    function test_addedAt_doesNotChangeWhenDatetimeIsFuture() public {
+        // Show is scheduled for the future; addedAt should still be `now`.
+        vm.warp(1_800_000_000);
+        vm.prank(owner);
+        bytes32 id = sc.addEpisode("future", "future", "", address(0), 1_900_000_000);
+        SlopComputer.Episode memory ep = sc.getEpisode(id);
+        assertEq(ep.datetime, 1_900_000_000);
+        assertEq(ep.addedAt, 1_800_000_000);
+    }
+
+    function test_goLive_emitsWentLiveWithPreviousZeroAndResumedFalse() public {
+        vm.expectEmit(true, true, false, true, address(sc));
+        emit SlopComputer.WentLive(sc.getId("show", DT), bytes32(0), false);
+        _goLiveAs(owner, "show");
+    }
+
+    function test_setLive_emitsWentLiveWithPreviousAndResumedTrue() public {
+        bytes32 first = _goLiveAs(owner, "first");
+        bytes32 second = _addAs(owner, "second");
+        vm.expectEmit(true, true, false, true, address(sc));
+        emit SlopComputer.WentLive(second, first, true);
+        vm.prank(owner);
+        sc.setLive(second);
+    }
+
+    function test_setLive_emitsPreviousZeroWhenResumingFromOffline() public {
+        bytes32 id = _goLiveAs(owner, "show");
+        vm.prank(owner);
+        sc.goOffline();
+        vm.expectEmit(true, true, false, true, address(sc));
+        emit SlopComputer.WentLive(id, bytes32(0), true);
+        vm.prank(owner);
+        sc.setLive(id);
+    }
+
+    function test_setSlug_revertsWhenLiveEqualsId() public {
+        bytes32 id = _goLiveAs(owner, "live-show");
+        vm.expectRevert(abi.encodeWithSelector(SlopComputer.EpisodeIsLive.selector, id));
+        vm.prank(owner);
+        sc.setSlug(id, "renamed");
+    }
+
+    function test_setSlug_allowedAfterGoOffline() public {
+        bytes32 id = _goLiveAs(owner, "live-show");
+        vm.prank(owner);
+        sc.goOffline();
+        vm.prank(owner);
+        sc.setSlug(id, "renamed");
+        assertEq(sc.getEpisode(id).slug, "renamed");
+    }
+
+    function test_deleteEpisode_emitsWentOfflineWhenDeletingLive() public {
+        bytes32 id = _goLiveAs(owner, "live-show");
+        vm.expectEmit(true, false, false, true, address(sc));
+        emit SlopComputer.WentOffline(id);
+        vm.prank(owner);
+        sc.deleteEpisode(id);
+        assertEq(sc.live(), bytes32(0));
+    }
+
+    function test_deleteEpisode_doesNotEmitWentOfflineForNonLiveEpisode() public {
+        bytes32 a = _goLiveAs(owner, "live-show");
+        bytes32 b = _addAs(owner, "non-live");
+        vm.recordLogs();
+        vm.prank(owner);
+        sc.deleteEpisode(b);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 wentOfflineTopic = keccak256("WentOffline(bytes32)");
+        for (uint256 i = 0; i < logs.length; i++) {
+            assertTrue(logs[i].topics[0] != wentOfflineTopic, "should not emit WentOffline for non-live delete");
+        }
+        // Sanity: live pointer still set to a.
+        assertEq(sc.live(), a);
+    }
+
+    // -------------------------------------------------------------------------
     // helpers — uses `name` as the slug too for brevity (slugs are validated
     // a-z 0-9 -, so test names like "a", "b", "ep0", "first" pass through)
     // -------------------------------------------------------------------------

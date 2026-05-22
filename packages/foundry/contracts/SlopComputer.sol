@@ -44,7 +44,12 @@ contract SlopComputer is Ownable {
         /// @dev `ipfs://<cid>` to the manifest JSON. May be empty during live.
         string manifest;
         address contractAddr;
-        uint256 datetime; // unix seconds — immutable
+        /// @dev Show's intended airtime (unix seconds). Immutable — part of id.
+        uint256 datetime;
+        /// @dev `block.timestamp` when the episode was added. Immutable. Lets
+        ///      indexers sort chronologically by add-time without scanning
+        ///      every block's logs.
+        uint256 addedAt;
         bytes32 nextId;
     }
 
@@ -71,7 +76,12 @@ contract SlopComputer is Ownable {
     event EpisodeManifestSet(bytes32 indexed id, string manifest);
     event EpisodeContractSet(bytes32 indexed id, address contractAddr);
     event EpisodeDeleted(bytes32 indexed id);
-    event WentLive(bytes32 indexed id);
+    /// @notice Live pointer moved to `id`. `previousLive` is the prior pointer
+    ///         (`bytes32(0)` if we were offline). `resumed` is `true` when
+    ///         emitted from `setLive` (re-pointing at a pre-existing episode)
+    ///         and `false` from `goLive` (this episode was just added in the
+    ///         same tx — pair with `EpisodeAdded` on the same id to confirm).
+    event WentLive(bytes32 indexed id, bytes32 indexed previousLive, bool resumed);
     event WentOffline(bytes32 indexed previousLive);
 
     error EpisodeNotFound(bytes32 id);
@@ -80,6 +90,7 @@ contract SlopComputer is Ownable {
     error SlugAlreadyTaken();
     error SlugNotFound(string slug);
     error NotLive();
+    error EpisodeIsLive(bytes32 id);
 
     constructor(address initialOwner) Ownable(initialOwner) { }
 
@@ -106,8 +117,9 @@ contract SlopComputer is Ownable {
         uint256 datetime
     ) external onlyOwner returns (bytes32 id) {
         id = _addEpisode(name, slug, manifest, contractAddr, datetime);
+        bytes32 previousLive = live;
         live = id;
-        emit WentLive(id);
+        emit WentLive(id, previousLive, false);
     }
 
     /// @notice Mark an existing episode as currently live without creating a new one.
@@ -115,15 +127,19 @@ contract SlopComputer is Ownable {
     ///         with `EpisodeAlreadyExists` for the same content.
     function setLive(bytes32 id) external onlyOwner {
         if (_episodes[id].id == bytes32(0)) revert EpisodeNotFound(id);
+        bytes32 previousLive = live;
         live = id;
-        emit WentLive(id);
+        emit WentLive(id, previousLive, true);
     }
 
     /// @notice Change the episode's slug. Validates format + uniqueness and
-    ///         updates the `slugToId` index in lockstep.
+    ///         updates the `slugToId` index in lockstep. Rejected while
+    ///         `live == id` — the audience has the current URL open; call
+    ///         `goOffline` first if you really need to rename mid-broadcast.
     function setSlug(bytes32 id, string calldata newSlug) external onlyOwner {
         Episode storage ep = _episodes[id];
         if (ep.id == bytes32(0)) revert EpisodeNotFound(id);
+        if (live == id) revert EpisodeIsLive(id);
         if (!_isValidSlug(newSlug)) revert SlugInvalid();
 
         // Allow a no-op rename (same slug → same id) but reject collisions.
@@ -183,7 +199,10 @@ contract SlopComputer is Ownable {
             _episodes[cursor].nextId = nextId;
         }
 
-        if (live == id) live = bytes32(0);
+        if (live == id) {
+            live = bytes32(0);
+            emit WentOffline(id);
+        }
 
         delete _episodes[id];
         delete slugToId[slug];
@@ -301,6 +320,7 @@ contract SlopComputer is Ownable {
             manifest: manifest,
             contractAddr: contractAddr,
             datetime: datetime,
+            addedAt: block.timestamp,
             nextId: head
         });
         slugToId[slug] = id;
