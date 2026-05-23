@@ -83,7 +83,13 @@ contract SlopComputer is Ownable {
     mapping(bytes32 => Episode) private _episodes;
 
     event EpisodeAdded(
-        bytes32 indexed id, string name, string slug, string manifest, address contractAddr, uint256 datetime
+        bytes32 indexed id,
+        string name,
+        string slug,
+        string liveSlug,
+        string manifest,
+        address contractAddr,
+        uint256 datetime
     );
     event EpisodeSlugSet(bytes32 indexed id, string slug);
     event EpisodeLiveSlugSet(bytes32 indexed id, string liveSlug);
@@ -109,28 +115,33 @@ contract SlopComputer is Ownable {
     constructor(address initialOwner) Ownable(initialOwner) { }
 
     /// @notice Add a new episode at the head of the list.
+    /// @dev    `liveSlug` is the relay-room slug this episode streams from; pass
+    ///         "" to default to "same as `slug`". See the struct docs.
     function addEpisode(
         string calldata name,
         string calldata slug,
+        string calldata liveSlug,
         string calldata manifest,
         address contractAddr,
         uint256 datetime
     ) external onlyOwner returns (bytes32 id) {
-        id = _addEpisode(name, slug, manifest, contractAddr, datetime);
+        id = _addEpisode(name, slug, liveSlug, manifest, contractAddr, datetime);
     }
 
     /// @notice Add a new episode at the head AND mark it as the currently-live episode.
     /// @dev    If a different episode is already live, its data is preserved in the list;
     ///         only the `live` pointer moves to the new one. `manifest` can be empty —
     ///         the frontend ignores it while `live == id` (plays the HLS endpoint).
+    ///         `liveSlug` is the relay-room slug; "" defaults to "same as `slug`".
     function goLive(
         string calldata name,
         string calldata slug,
+        string calldata liveSlug,
         string calldata manifest,
         address contractAddr,
         uint256 datetime
     ) external onlyOwner returns (bytes32 id) {
-        id = _addEpisode(name, slug, manifest, contractAddr, datetime);
+        id = _addEpisode(name, slug, liveSlug, manifest, contractAddr, datetime);
         bytes32 previousLive = live;
         live = id;
         emit WentLive(id, previousLive, false);
@@ -326,11 +337,15 @@ contract SlopComputer is Ownable {
     function _addEpisode(
         string memory name,
         string memory slug,
+        string memory liveSlug,
         string memory manifest,
         address contractAddr,
         uint256 datetime
     ) internal returns (bytes32 id) {
         if (!_isValidSlug(slug)) revert SlugInvalid();
+        // liveSlug is optional — empty means "same as slug" and is the common
+        // case. Validate the format only if a non-empty value was provided.
+        if (bytes(liveSlug).length > 0 && !_isValidSlug(liveSlug)) revert SlugInvalid();
 
         // Check content-uniqueness before slug-uniqueness so a true duplicate
         // (same name+datetime) reports as EpisodeAlreadyExists even when the
@@ -343,9 +358,7 @@ contract SlopComputer is Ownable {
             id: id,
             name: name,
             slug: slug,
-            // Default to empty — frontends fall back to `slug`. Host can
-            // setLiveSlug later if the studio room name differs.
-            liveSlug: "",
+            liveSlug: liveSlug,
             manifest: manifest,
             contractAddr: contractAddr,
             datetime: datetime,
@@ -356,7 +369,7 @@ contract SlopComputer is Ownable {
         head = id;
         episodeCount += 1;
 
-        emit EpisodeAdded(id, name, slug, manifest, contractAddr, datetime);
+        emit EpisodeAdded(id, name, slug, liveSlug, manifest, contractAddr, datetime);
     }
 
     /// @dev Slugs are 1-64 chars of `[a-z0-9-]` and must not start or end with a
