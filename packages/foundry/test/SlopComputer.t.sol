@@ -896,6 +896,73 @@ contract SlopComputerTest is Test {
     }
 
     // -------------------------------------------------------------------------
+    // liveSlug — decouples the on-chain `slug` from the relay-room slug so
+    // one room can host multiple episodes
+    // -------------------------------------------------------------------------
+
+    function test_liveSlug_defaultsToEmpty() public {
+        bytes32 id = _addAs(owner, "ep0");
+        assertEq(sc.getEpisode(id).liveSlug, "");
+    }
+
+    function test_setLiveSlug_storesValue() public {
+        bytes32 id = _addAs(owner, "ep0");
+        vm.prank(owner);
+        sc.setLiveSlug(id, "studio");
+        assertEq(sc.getEpisode(id).liveSlug, "studio");
+    }
+
+    function test_setLiveSlug_allowsEmptyAsReset() public {
+        bytes32 id = _addAs(owner, "ep0");
+        vm.prank(owner);
+        sc.setLiveSlug(id, "studio");
+        vm.prank(owner);
+        sc.setLiveSlug(id, "");
+        assertEq(sc.getEpisode(id).liveSlug, "");
+    }
+
+    function test_setLiveSlug_revertsOnInvalidFormat() public {
+        bytes32 id = _addAs(owner, "ep0");
+        vm.expectRevert(SlopComputer.SlugInvalid.selector);
+        vm.prank(owner);
+        sc.setLiveSlug(id, "Bad Slug");
+    }
+
+    function test_setLiveSlug_revertsForUnknownId() public {
+        bytes32 fake = keccak256("nope");
+        vm.expectRevert(abi.encodeWithSelector(SlopComputer.EpisodeNotFound.selector, fake));
+        vm.prank(owner);
+        sc.setLiveSlug(fake, "studio");
+    }
+
+    function test_setLiveSlug_revertsForNonOwner() public {
+        bytes32 id = _addAs(owner, "ep0");
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        vm.prank(stranger);
+        sc.setLiveSlug(id, "studio");
+    }
+
+    function test_setLiveSlug_emitsEvent() public {
+        bytes32 id = _addAs(owner, "ep0");
+        vm.expectEmit(true, false, false, true, address(sc));
+        emit SlopComputer.EpisodeLiveSlugSet(id, "studio");
+        vm.prank(owner);
+        sc.setLiveSlug(id, "studio");
+    }
+
+    function test_setLiveSlug_sameValueAcrossEpisodes() public {
+        // Many-to-one: a single studio room can back multiple episodes.
+        bytes32 a = _addAs(owner, "first");
+        bytes32 b = _addAs(owner, "second");
+        vm.prank(owner);
+        sc.setLiveSlug(a, "studio");
+        vm.prank(owner);
+        sc.setLiveSlug(b, "studio");
+        assertEq(sc.getEpisode(a).liveSlug, "studio");
+        assertEq(sc.getEpisode(b).liveSlug, "studio");
+    }
+
+    // -------------------------------------------------------------------------
     // helpers — uses `name` as the slug too for brevity (slugs are validated
     // a-z 0-9 -, so test names like "a", "b", "ep0", "first" pass through)
     // -------------------------------------------------------------------------

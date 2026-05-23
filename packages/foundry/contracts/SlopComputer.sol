@@ -41,6 +41,19 @@ contract SlopComputer is Ownable {
         ///      datetime) pair that derives `id`.
         string name;
         string slug;
+        /// @dev `live.slop.computer/<liveSlug>` — the relay room this episode
+        ///      streams from. Decoupled from `slug` so a stable studio room
+        ///      can host many episodes (e.g. `liveSlug="studio"`) while each
+        ///      episode keeps its own descriptive on-chain `slug`. Empty means
+        ///      "same as slug" — the common case and the default at add time.
+        ///      Frontends read `episode.liveSlug` falling back to `episode.slug`.
+        ///      The card URL during live/scheduled phases is
+        ///      `live.slop.computer/v1/cards/<liveSlug>/published.png`; the
+        ///      per-episode snapshot is pinned at finalize and lives at
+        ///      `manifest.card.cid` from that point on, so a shared room can
+        ///      overwrite the card between episodes without breaking older
+        ///      VODs.
+        string liveSlug;
         /// @dev `ipfs://<cid>` to the manifest JSON. May be empty during live.
         string manifest;
         address contractAddr;
@@ -73,6 +86,7 @@ contract SlopComputer is Ownable {
         bytes32 indexed id, string name, string slug, string manifest, address contractAddr, uint256 datetime
     );
     event EpisodeSlugSet(bytes32 indexed id, string slug);
+    event EpisodeLiveSlugSet(bytes32 indexed id, string liveSlug);
     event EpisodeManifestSet(bytes32 indexed id, string manifest);
     event EpisodeContractSet(bytes32 indexed id, address contractAddr);
     event EpisodeDeleted(bytes32 indexed id);
@@ -150,6 +164,18 @@ contract SlopComputer is Ownable {
         ep.slug = newSlug;
         slugToId[newSlug] = id;
         emit EpisodeSlugSet(id, newSlug);
+    }
+
+    /// @notice Set the relay room this episode streams from. Empty value
+    ///         resets to "same as `slug`" — frontends fall back to `episode.slug`
+    ///         when `liveSlug` is empty. Format validation mirrors `setSlug`
+    ///         (the slug rule) since the relay enforces the same regex on
+    ///         room creation; empty is allowed and means "reset".
+    function setLiveSlug(bytes32 id, string calldata newLiveSlug) external onlyOwner {
+        if (_episodes[id].id == bytes32(0)) revert EpisodeNotFound(id);
+        if (bytes(newLiveSlug).length > 0 && !_isValidSlug(newLiveSlug)) revert SlugInvalid();
+        _episodes[id].liveSlug = newLiveSlug;
+        emit EpisodeLiveSlugSet(id, newLiveSlug);
     }
 
     /// @notice Update the manifest pointer — the live → recorded flow lives here.
@@ -317,6 +343,9 @@ contract SlopComputer is Ownable {
             id: id,
             name: name,
             slug: slug,
+            // Default to empty — frontends fall back to `slug`. Host can
+            // setLiveSlug later if the studio room name differs.
+            liveSlug: "",
             manifest: manifest,
             contractAddr: contractAddr,
             datetime: datetime,
