@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   1: {
     SlopComputer: {
-      address: "0x702bcfa3c32518cb40c6228471b26eeacbb28333",
+      address: "0xf3ce3614fe8cd4294a0bf05d10cfda9d9cbc4886",
       abi: [
         {
           type: "constructor",
@@ -22,6 +22,19 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "ENS_REVERSE_REGISTRAR",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
           name: "addEpisode",
           inputs: [
             {
@@ -31,6 +44,11 @@ const deployedContracts = {
             },
             {
               name: "slug",
+              type: "string",
+              internalType: "string",
+            },
+            {
+              name: "liveSlug",
               type: "string",
               internalType: "string",
             },
@@ -87,6 +105,35 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "execute",
+          inputs: [
+            {
+              name: "target",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "value",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "data",
+              type: "bytes",
+              internalType: "bytes",
+            },
+          ],
+          outputs: [
+            {
+              name: "result",
+              type: "bytes",
+              internalType: "bytes",
+            },
+          ],
+          stateMutability: "payable",
+        },
+        {
+          type: "function",
           name: "getEpisode",
           inputs: [
             {
@@ -117,6 +164,11 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "liveSlug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "manifest",
                   type: "string",
                   internalType: "string",
@@ -128,6 +180,11 @@ const deployedContracts = {
                 },
                 {
                   name: "datetime",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "addedAt",
                   type: "uint256",
                   internalType: "uint256",
                 },
@@ -173,6 +230,11 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "liveSlug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "manifest",
                   type: "string",
                   internalType: "string",
@@ -184,6 +246,11 @@ const deployedContracts = {
                 },
                 {
                   name: "datetime",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "addedAt",
                   type: "uint256",
                   internalType: "uint256",
                 },
@@ -234,6 +301,11 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "liveSlug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "manifest",
                   type: "string",
                   internalType: "string",
@@ -245,6 +317,11 @@ const deployedContracts = {
                 },
                 {
                   name: "datetime",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "addedAt",
                   type: "uint256",
                   internalType: "uint256",
                 },
@@ -295,6 +372,11 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "liveSlug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "manifest",
                   type: "string",
                   internalType: "string",
@@ -306,6 +388,11 @@ const deployedContracts = {
                 },
                 {
                   name: "datetime",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "addedAt",
                   type: "uint256",
                   internalType: "uint256",
                 },
@@ -354,6 +441,11 @@ const deployedContracts = {
             },
             {
               name: "slug",
+              type: "string",
+              internalType: "string",
+            },
+            {
+              name: "liveSlug",
               type: "string",
               internalType: "string",
             },
@@ -447,6 +539,11 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "liveSlug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "manifest",
                   type: "string",
                   internalType: "string",
@@ -458,6 +555,11 @@ const deployedContracts = {
                 },
                 {
                   name: "datetime",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "addedAt",
                   type: "uint256",
                   internalType: "uint256",
                 },
@@ -510,6 +612,11 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "liveSlug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "manifest",
                   type: "string",
                   internalType: "string",
@@ -521,6 +628,11 @@ const deployedContracts = {
                 },
                 {
                   name: "datetime",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "addedAt",
                   type: "uint256",
                   internalType: "uint256",
                 },
@@ -587,6 +699,24 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "setLiveSlug",
+          inputs: [
+            {
+              name: "id",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+            {
+              name: "newLiveSlug",
+              type: "string",
+              internalType: "string",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
           name: "setManifest",
           inputs: [
             {
@@ -601,6 +731,25 @@ const deployedContracts = {
             },
           ],
           outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "setName",
+          inputs: [
+            {
+              name: "name",
+              type: "string",
+              internalType: "string",
+            },
+          ],
+          outputs: [
+            {
+              name: "node",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+          ],
           stateMutability: "nonpayable",
         },
         {
@@ -676,6 +825,12 @@ const deployedContracts = {
               internalType: "string",
             },
             {
+              name: "liveSlug",
+              type: "string",
+              indexed: false,
+              internalType: "string",
+            },
+            {
               name: "manifest",
               type: "string",
               indexed: false,
@@ -730,6 +885,25 @@ const deployedContracts = {
         },
         {
           type: "event",
+          name: "EpisodeLiveSlugSet",
+          inputs: [
+            {
+              name: "id",
+              type: "bytes32",
+              indexed: true,
+              internalType: "bytes32",
+            },
+            {
+              name: "liveSlug",
+              type: "string",
+              indexed: false,
+              internalType: "string",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
           name: "EpisodeManifestSet",
           inputs: [
             {
@@ -768,6 +942,50 @@ const deployedContracts = {
         },
         {
           type: "event",
+          name: "Executed",
+          inputs: [
+            {
+              name: "target",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "value",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "data",
+              type: "bytes",
+              indexed: false,
+              internalType: "bytes",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "NameSet",
+          inputs: [
+            {
+              name: "name",
+              type: "string",
+              indexed: false,
+              internalType: "string",
+            },
+            {
+              name: "node",
+              type: "bytes32",
+              indexed: false,
+              internalType: "bytes32",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
           name: "OwnershipTransferred",
           inputs: [
             {
@@ -795,6 +1013,18 @@ const deployedContracts = {
               indexed: true,
               internalType: "bytes32",
             },
+            {
+              name: "previousLive",
+              type: "bytes32",
+              indexed: true,
+              internalType: "bytes32",
+            },
+            {
+              name: "resumed",
+              type: "bool",
+              indexed: false,
+              internalType: "bool",
+            },
           ],
           anonymous: false,
         },
@@ -814,6 +1044,17 @@ const deployedContracts = {
         {
           type: "error",
           name: "EpisodeAlreadyExists",
+          inputs: [
+            {
+              name: "id",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+          ],
+        },
+        {
+          type: "error",
+          name: "EpisodeIsLive",
           inputs: [
             {
               name: "id",
@@ -883,7 +1124,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 25095477,
+      deployedOnBlock: 25189471,
     },
   },
   31337: {
@@ -903,6 +1144,19 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "ENS_REVERSE_REGISTRAR",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
           name: "addEpisode",
           inputs: [
             {
@@ -912,6 +1166,11 @@ const deployedContracts = {
             },
             {
               name: "slug",
+              type: "string",
+              internalType: "string",
+            },
+            {
+              name: "liveSlug",
               type: "string",
               internalType: "string",
             },
@@ -968,6 +1227,35 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "execute",
+          inputs: [
+            {
+              name: "target",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "value",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "data",
+              type: "bytes",
+              internalType: "bytes",
+            },
+          ],
+          outputs: [
+            {
+              name: "result",
+              type: "bytes",
+              internalType: "bytes",
+            },
+          ],
+          stateMutability: "payable",
+        },
+        {
+          type: "function",
           name: "getEpisode",
           inputs: [
             {
@@ -998,6 +1286,11 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "liveSlug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "manifest",
                   type: "string",
                   internalType: "string",
@@ -1009,6 +1302,11 @@ const deployedContracts = {
                 },
                 {
                   name: "datetime",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "addedAt",
                   type: "uint256",
                   internalType: "uint256",
                 },
@@ -1054,6 +1352,11 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "liveSlug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "manifest",
                   type: "string",
                   internalType: "string",
@@ -1065,6 +1368,11 @@ const deployedContracts = {
                 },
                 {
                   name: "datetime",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "addedAt",
                   type: "uint256",
                   internalType: "uint256",
                 },
@@ -1115,6 +1423,11 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "liveSlug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "manifest",
                   type: "string",
                   internalType: "string",
@@ -1126,6 +1439,11 @@ const deployedContracts = {
                 },
                 {
                   name: "datetime",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "addedAt",
                   type: "uint256",
                   internalType: "uint256",
                 },
@@ -1176,6 +1494,11 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "liveSlug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "manifest",
                   type: "string",
                   internalType: "string",
@@ -1187,6 +1510,11 @@ const deployedContracts = {
                 },
                 {
                   name: "datetime",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "addedAt",
                   type: "uint256",
                   internalType: "uint256",
                 },
@@ -1235,6 +1563,11 @@ const deployedContracts = {
             },
             {
               name: "slug",
+              type: "string",
+              internalType: "string",
+            },
+            {
+              name: "liveSlug",
               type: "string",
               internalType: "string",
             },
@@ -1328,6 +1661,11 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "liveSlug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "manifest",
                   type: "string",
                   internalType: "string",
@@ -1339,6 +1677,11 @@ const deployedContracts = {
                 },
                 {
                   name: "datetime",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "addedAt",
                   type: "uint256",
                   internalType: "uint256",
                 },
@@ -1391,6 +1734,11 @@ const deployedContracts = {
                   internalType: "string",
                 },
                 {
+                  name: "liveSlug",
+                  type: "string",
+                  internalType: "string",
+                },
+                {
                   name: "manifest",
                   type: "string",
                   internalType: "string",
@@ -1402,6 +1750,11 @@ const deployedContracts = {
                 },
                 {
                   name: "datetime",
+                  type: "uint256",
+                  internalType: "uint256",
+                },
+                {
+                  name: "addedAt",
                   type: "uint256",
                   internalType: "uint256",
                 },
@@ -1468,6 +1821,24 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "setLiveSlug",
+          inputs: [
+            {
+              name: "id",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+            {
+              name: "newLiveSlug",
+              type: "string",
+              internalType: "string",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
           name: "setManifest",
           inputs: [
             {
@@ -1482,6 +1853,25 @@ const deployedContracts = {
             },
           ],
           outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "setName",
+          inputs: [
+            {
+              name: "name",
+              type: "string",
+              internalType: "string",
+            },
+          ],
+          outputs: [
+            {
+              name: "node",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+          ],
           stateMutability: "nonpayable",
         },
         {
@@ -1557,6 +1947,12 @@ const deployedContracts = {
               internalType: "string",
             },
             {
+              name: "liveSlug",
+              type: "string",
+              indexed: false,
+              internalType: "string",
+            },
+            {
               name: "manifest",
               type: "string",
               indexed: false,
@@ -1611,6 +2007,25 @@ const deployedContracts = {
         },
         {
           type: "event",
+          name: "EpisodeLiveSlugSet",
+          inputs: [
+            {
+              name: "id",
+              type: "bytes32",
+              indexed: true,
+              internalType: "bytes32",
+            },
+            {
+              name: "liveSlug",
+              type: "string",
+              indexed: false,
+              internalType: "string",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
           name: "EpisodeManifestSet",
           inputs: [
             {
@@ -1649,6 +2064,50 @@ const deployedContracts = {
         },
         {
           type: "event",
+          name: "Executed",
+          inputs: [
+            {
+              name: "target",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "value",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "data",
+              type: "bytes",
+              indexed: false,
+              internalType: "bytes",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "NameSet",
+          inputs: [
+            {
+              name: "name",
+              type: "string",
+              indexed: false,
+              internalType: "string",
+            },
+            {
+              name: "node",
+              type: "bytes32",
+              indexed: false,
+              internalType: "bytes32",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
           name: "OwnershipTransferred",
           inputs: [
             {
@@ -1676,6 +2135,18 @@ const deployedContracts = {
               indexed: true,
               internalType: "bytes32",
             },
+            {
+              name: "previousLive",
+              type: "bytes32",
+              indexed: true,
+              internalType: "bytes32",
+            },
+            {
+              name: "resumed",
+              type: "bool",
+              indexed: false,
+              internalType: "bool",
+            },
           ],
           anonymous: false,
         },
@@ -1695,6 +2166,17 @@ const deployedContracts = {
         {
           type: "error",
           name: "EpisodeAlreadyExists",
+          inputs: [
+            {
+              name: "id",
+              type: "bytes32",
+              internalType: "bytes32",
+            },
+          ],
+        },
+        {
+          type: "error",
+          name: "EpisodeIsLive",
           inputs: [
             {
               name: "id",

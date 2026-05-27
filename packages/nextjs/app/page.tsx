@@ -15,13 +15,15 @@ type Hex32 = `0x${string}`;
 type EpisodeForm = {
   name: string;
   slug: string;
+  /** relay-room slug; empty means "same as slug" (the contract default) */
+  liveSlug: string;
   manifest: string;
   contractAddr: string;
   /** datetime-local value, e.g. "2026-05-09T14:30" — converted to unix seconds before send */
   datetime: string;
 };
 
-const emptyForm: EpisodeForm = { name: "", slug: "", manifest: "", contractAddr: "", datetime: "" };
+const emptyForm: EpisodeForm = { name: "", slug: "", liveSlug: "", manifest: "", contractAddr: "", datetime: "" };
 
 const toUnix = (datetimeLocal: string): bigint => {
   if (!datetimeLocal) return 0n;
@@ -104,6 +106,7 @@ const Home: NextPage = () => {
       args: [
         addForm.name,
         addForm.slug,
+        addForm.liveSlug,
         addForm.manifest,
         addForm.contractAddr || ZERO_ADDRESS,
         toUnix(addForm.datetime),
@@ -119,6 +122,7 @@ const Home: NextPage = () => {
       args: [
         liveForm.name,
         liveForm.slug,
+        liveForm.liveSlug,
         liveForm.manifest,
         liveForm.contractAddr || ZERO_ADDRESS,
         toUnix(liveForm.datetime),
@@ -277,6 +281,12 @@ const Panel = ({ title, form, setForm, onSubmit, submitLabel, disabled }: PanelP
       placeholder="slug (a-z 0-9 -, unique)"
       value={form.slug}
       onChange={e => setForm({ ...form, slug: e.target.value })}
+    />
+    <input
+      className="input input-bordered input-sm"
+      placeholder="live slug (a-z 0-9 -, optional — defaults to slug)"
+      value={form.liveSlug}
+      onChange={e => setForm({ ...form, liveSlug: e.target.value })}
     />
     <input
       className="input input-bordered input-sm"

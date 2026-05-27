@@ -6,9 +6,9 @@ Onchain registry of [slop.computer](https://slop.computer) episodes plus a "live
 
 | Network | Address | Owner |
 | --- | --- | --- |
-| Ethereum Mainnet (chainId `1`) | [`0x702BcFa3C32518cb40C6228471b26eeACBB28333`](https://etherscan.io/address/0x702BcFa3C32518cb40C6228471b26eeACBB28333) | [`atg.eth`](https://etherscan.io/address/0x34aA3F359A9D614239015126635CE7732c18fDF3) (`0x34aA3F359A9D614239015126635CE7732c18fDF3`) |
+| Ethereum Mainnet (chainId `1`) | [`0xF3ce3614fE8cD4294a0bf05D10cFDa9D9cbc4886`](https://etherscan.io/address/0xF3ce3614fE8cD4294a0bf05D10cFDa9D9cbc4886) | [`atg.eth`](https://etherscan.io/address/0x34aA3F359A9D614239015126635CE7732c18fDF3) (`0x34aA3F359A9D614239015126635CE7732c18fDF3`) |
 
-Source verified on Etherscan. The previous deployment at `0x5b448e5E…76F3` is superseded.
+Source verified on Etherscan. This deployment adds an owner `execute(target, value, data)` recovery escape hatch and `setName(name)` (sets the contract's primary ENS name via the mainnet ReverseRegistrar). Previous deployments at `0x702BcFa3…8333`, `0x733eb544…20c7`, and `0x5b448e5E…76F3` are superseded.
 
 Source and tooling:
 
