@@ -966,6 +966,103 @@ contract SlopComputerTest is Test {
     }
 
     // -------------------------------------------------------------------------
+    // setName — ENS primary name via the ReverseRegistrar
+    // -------------------------------------------------------------------------
+
+    function test_setName_callsReverseRegistrarAsThisContract() public {
+        MockReverseRegistrar mock = new MockReverseRegistrar();
+        vm.etch(sc.ENS_REVERSE_REGISTRAR(), address(mock).code);
+
+        vm.prank(owner);
+        bytes32 node = sc.setName("slopcomputer.eth");
+
+        MockReverseRegistrar reg = MockReverseRegistrar(sc.ENS_REVERSE_REGISTRAR());
+        assertEq(reg.lastName(), "slopcomputer.eth");
+        assertEq(reg.lastCaller(), address(sc)); // the contract, not the owner
+        assertEq(node, mock.NODE());
+    }
+
+    function test_setName_emitsNameSet() public {
+        MockReverseRegistrar mock = new MockReverseRegistrar();
+        vm.etch(sc.ENS_REVERSE_REGISTRAR(), address(mock).code);
+
+        vm.expectEmit(false, false, false, true, address(sc));
+        emit SlopComputer.NameSet("slopcomputer.eth", mock.NODE());
+        vm.prank(owner);
+        sc.setName("slopcomputer.eth");
+    }
+
+    function test_setName_revertsForNonOwner() public {
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        sc.setName("slopcomputer.eth");
+    }
+
+    // -------------------------------------------------------------------------
+    // execute — owner recovery / admin escape hatch
+    // -------------------------------------------------------------------------
+
+    function test_execute_recoversEth() public {
+        vm.deal(address(sc), 1 ether);
+        address to = address(0xD00D);
+        vm.prank(owner);
+        sc.execute(to, 1 ether, "");
+        assertEq(to.balance, 1 ether);
+        assertEq(address(sc).balance, 0);
+    }
+
+    function test_execute_recoversErc20() public {
+        MockERC20 token = new MockERC20();
+        token.mint(address(sc), 500);
+        address recipient = address(0xBEEF);
+
+        vm.prank(owner);
+        sc.execute(address(token), 0, abi.encodeWithSignature("transfer(address,uint256)", recipient, uint256(500)));
+
+        assertEq(token.balanceOf(recipient), 500);
+        assertEq(token.balanceOf(address(sc)), 0);
+    }
+
+    function test_execute_returnsCalleeReturnData() public {
+        MockERC20 token = new MockERC20();
+        token.mint(address(sc), 10);
+        vm.prank(owner);
+        bytes memory ret =
+            sc.execute(address(token), 0, abi.encodeWithSignature("transfer(address,uint256)", address(0xBEEF), uint256(10)));
+        assertTrue(abi.decode(ret, (bool)));
+    }
+
+    function test_execute_forwardsAttachedValue() public {
+        address to = address(0xD00D);
+        vm.deal(owner, 2 ether);
+        vm.prank(owner);
+        sc.execute{ value: 1 ether }(to, 1 ether, "");
+        assertEq(to.balance, 1 ether);
+    }
+
+    function test_execute_bubblesRevertReason() public {
+        Reverter r = new Reverter();
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(Reverter.Boom.selector, "nope"));
+        sc.execute(address(r), 0, abi.encodeWithSignature("boom()"));
+    }
+
+    function test_execute_emitsExecuted() public {
+        vm.deal(address(sc), 1 ether);
+        address to = address(0xD00D);
+        vm.expectEmit(true, false, false, true, address(sc));
+        emit SlopComputer.Executed(to, 1 ether, "");
+        vm.prank(owner);
+        sc.execute(to, 1 ether, "");
+    }
+
+    function test_execute_revertsForNonOwner() public {
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        sc.execute(address(0xBEEF), 0, "");
+    }
+
+    // -------------------------------------------------------------------------
     // helpers — uses `name` as the slug too for brevity (slugs are validated
     // a-z 0-9 -, so test names like "a", "b", "ep0", "first" pass through)
     // -------------------------------------------------------------------------
@@ -978,5 +1075,47 @@ contract SlopComputerTest is Test {
     function _goLiveAs(address who, string memory name) internal returns (bytes32) {
         vm.prank(who);
         return sc.goLive(name, name, "", "", address(0), DT);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// test mocks
+// -----------------------------------------------------------------------------
+
+/// @dev Stand-in for the ENS ReverseRegistrar, etched over the real address so
+///      `setName` has code to call. Records the name and the caller it saw.
+contract MockReverseRegistrar {
+    string public lastName;
+    address public lastCaller;
+    bytes32 public constant NODE = keccak256("addr.reverse-node");
+
+    function setName(string memory name) external returns (bytes32) {
+        lastName = name;
+        lastCaller = msg.sender;
+        return NODE;
+    }
+}
+
+/// @dev Minimal ERC-20-shaped token for exercising `execute`-based recovery.
+contract MockERC20 {
+    mapping(address => uint256) public balanceOf;
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+}
+
+/// @dev Reverts with a custom error so we can assert `execute` bubbles it up.
+contract Reverter {
+    error Boom(string why);
+
+    function boom() external pure {
+        revert Boom("nope");
     }
 }

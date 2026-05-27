@@ -17,6 +17,14 @@ pragma solidity ^0.8.20;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
+/// @notice Minimal slice of the ENS ReverseRegistrar. `setName` claims the
+///         caller's `addr.reverse` node and points it at `name` on the default
+///         reverse resolver, so reverse lookups of this contract resolve to it.
+///         See `SlopComputer.setName`.
+interface IReverseRegistrar {
+    function setName(string memory name) external returns (bytes32);
+}
+
 /// @title SlopComputer
 /// @notice Onchain registry of slop.computer episodes plus a "live now" pointer.
 ///         Episodes are stored in a singly-linked list so the head is always the
@@ -82,6 +90,13 @@ contract SlopComputer is Ownable {
 
     mapping(bytes32 => Episode) private _episodes;
 
+    /// @notice Canonical ENS ReverseRegistrar on Ethereum mainnet — the owner of
+    ///         the `addr.reverse` node, verified on-chain. `setName` routes
+    ///         through it. On chains without ENS at this address `setName` simply
+    ///         reverts; the owner can still reach any other registrar via
+    ///         `execute`.
+    address public constant ENS_REVERSE_REGISTRAR = 0xa58E81fe9b61B5c3fE2AFD33CF304c454AbFc7Cb;
+
     event EpisodeAdded(
         bytes32 indexed id,
         string name,
@@ -103,6 +118,11 @@ contract SlopComputer is Ownable {
     ///         same tx — pair with `EpisodeAdded` on the same id to confirm).
     event WentLive(bytes32 indexed id, bytes32 indexed previousLive, bool resumed);
     event WentOffline(bytes32 indexed previousLive);
+    /// @notice Primary ENS name set on this contract via the ReverseRegistrar.
+    ///         `node` is the returned `addr.reverse` node hash.
+    event NameSet(string name, bytes32 node);
+    /// @notice An owner-forwarded arbitrary call (the recovery / admin escape hatch).
+    event Executed(address indexed target, uint256 value, bytes data);
 
     error EpisodeNotFound(bytes32 id);
     error EpisodeAlreadyExists(bytes32 id);
@@ -247,6 +267,43 @@ contract SlopComputer is Ownable {
             episodeCount -= 1;
         }
         emit EpisodeDeleted(id);
+    }
+
+    // -------------------------------------------------------------------------
+    // contract administration — ENS primary name + recovery escape hatch
+    // -------------------------------------------------------------------------
+
+    /// @notice Set this contract's primary ENS name (reverse record). Point a
+    ///         name's address record at this contract (e.g. `slopcomputer.eth`),
+    ///         then call `setName("slopcomputer.eth")` so reverse lookups resolve
+    ///         back to it. Routes through the mainnet ENS ReverseRegistrar.
+    /// @return node The `addr.reverse` node hash the registrar returns.
+    function setName(string calldata name) external onlyOwner returns (bytes32 node) {
+        node = IReverseRegistrar(ENS_REVERSE_REGISTRAR).setName(name);
+        emit NameSet(name, node);
+    }
+
+    /// @notice Owner escape hatch: forward an arbitrary call from this contract.
+    ///         Mainly to recover ETH or tokens sent here by mistake —
+    ///         `execute(token, 0, abi.encodeCall(IERC20.transfer, (to, amount)))`
+    ///         for ERC-20s, or `execute(to, address(this).balance, "")` for ETH —
+    ///         and for any one-off admin action without a dedicated method.
+    ///         Bubbles up the callee's revert data on failure.
+    function execute(address target, uint256 value, bytes calldata data)
+        external
+        payable
+        onlyOwner
+        returns (bytes memory result)
+    {
+        bool ok;
+        (ok, result) = target.call{ value: value }(data);
+        if (!ok) {
+            // Bubble up the original revert reason rather than masking it.
+            assembly {
+                revert(add(result, 0x20), mload(result))
+            }
+        }
+        emit Executed(target, value, data);
     }
 
     /// @notice Compute the id that `addEpisode` / `goLive` will produce for these fields.
